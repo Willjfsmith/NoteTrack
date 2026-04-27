@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DayTrack — Home B · Cockpit</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="daytrack.css">
+<style>
+  /* Variation B — cockpit/dashboard */
+  .b-head{display:flex;align-items:flex-end;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+  .b-head h1{margin:0;font-family:var(--serif);font-size:30px;font-weight:500;letter-spacing:-.015em}
+  .b-head h1 .day{color:var(--ink-3);font-style:italic;font-weight:400;margin-left:6px}
+  .b-head .sub{color:var(--ink-3);font-size:12px;margin-top:2px}
+  .b-head .controls{margin-left:auto;display:flex;gap:6px}
+  .b-head .seg{display:inline-flex;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-2);padding:2px}
+  .b-head .seg .opt{padding:3px 9px;font-size:11px;color:var(--ink-3);border-radius:var(--r-1);cursor:pointer}
+  .b-head .seg .opt.on{background:var(--surface);color:var(--ink);box-shadow:var(--sh-1);font-weight:500}
+
+  .b-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+  .b-grid > *{min-width:0}
+  .span-3{grid-column:span 3}
+  .span-4{grid-column:span 4}
+  .span-5{grid-column:span 5}
+  .span-6{grid-column:span 6}
+  .span-7{grid-column:span 7}
+  .span-8{grid-column:span 8}
+  .span-12{grid-column:span 12}
+  @media (max-width:1100px){
+    .span-3,.span-4,.span-5,.span-6,.span-7,.span-8{grid-column:span 12}
+  }
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-4);box-shadow:var(--sh-1);display:flex;flex-direction:column;min-height:0}
+  .ph{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line)}
+  .ph h3{margin:0;font-size:13px;font-weight:600}
+  .ph .ct{font-family:var(--mono);font-size:10.5px;color:var(--ink-4);background:var(--bg-2);padding:1px 6px;border-radius:4px}
+  .ph .right{margin-left:auto;display:flex;gap:6px;align-items:center;color:var(--ink-3);font-size:11.5px}
+  .pb{padding:6px 0;flex:1;min-height:0;overflow:auto}
+  .pb.pad{padding:10px 12px}
+
+  /* progress strip */
+  .progress{display:flex;align-items:center;gap:18px;padding:14px 16px;background:linear-gradient(180deg, var(--surface) 0%, var(--bg-2) 100%);border:1px solid var(--line);border-radius:var(--r-4);box-shadow:var(--sh-1);margin-bottom:14px}
+  .progress .pct{font-family:var(--serif);font-size:48px;font-weight:500;letter-spacing:-.02em;line-height:1;color:var(--ink)}
+  .progress .lbl{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+  .progress .v{font-family:var(--serif);font-size:24px;font-weight:500;color:var(--ink);line-height:1;letter-spacing:-.01em}
+  .progress .stat{display:flex;flex-direction:column;gap:4px;padding:0 16px;border-left:1px solid var(--line)}
+  .progress .stat:first-of-type{border-left:none;padding-left:0}
+  .progress .gates-mini{flex:1;min-width:240px}
+  .progress .gates-mini .lbl{margin-bottom:6px}
+
+  /* week strip */
+  .week-cells .day{min-height:96px}
+  .week-cells .day .ev.tone-blue{background:var(--tone-blue-bg);border-color:var(--tone-blue-bd);color:var(--tone-blue-ink)}
+  .week-cells .day .ev.tone-orange{background:var(--tone-orange-bg);border-color:var(--tone-orange-bd);color:var(--tone-orange-ink)}
+  .week-cells .day .ev.tone-purple{background:var(--tone-purple-bg);border-color:var(--tone-purple-bd);color:var(--tone-purple-ink)}
+
+  /* on-you list */
+  .ou{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);font-size:12.5px;cursor:pointer}
+  .ou:last-child{border-bottom:none}
+  .ou:hover{background:var(--bg-2)}
+  .ou .chk{width:14px;height:14px;border:1.5px solid var(--ink-5);border-radius:3px;flex:0 0 auto}
+  .ou.late{background:#fff8f7}
+  .ou.late .chk{border-color:var(--tone-red-bd)}
+  .ou .ti{flex:1;min-width:0;color:var(--ink);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ou .due{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+  .ou.late .due{color:var(--tone-red-ink);font-weight:600}
+
+  /* slipping table */
+  .slip-row{display:grid;grid-template-columns:64px 1fr 70px 70px 50px 24px;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);font-size:12px;align-items:center}
+  .slip-row:last-child{border-bottom:none}
+  .slip-row .id{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+  .slip-row .ti{color:var(--ink);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .slip-row .d{font-family:var(--mono);font-size:10.5px}
+  .slip-row .was{color:var(--ink-4);text-decoration:line-through}
+  .slip-row .now{color:var(--ink)}
+  .slip-row .by{font-family:var(--mono);font-size:10.5px;color:var(--tone-red-ink);font-weight:600}
+
+  /* moves stream */
+  .moves .mv{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);font-size:12px}
+  .moves .mv:last-child{border-bottom:none}
+  .moves .mv .id{font-family:var(--mono);font-size:11px;background:var(--bg-2);border:1px solid var(--line);border-radius:4px;padding:0 5px;color:var(--ink-2)}
+  .moves .mv .arrow{color:var(--ink-4)}
+  .moves .mv .from{color:var(--ink-3)}
+  .moves .mv .to{color:var(--ink);font-weight:500}
+  .moves .mv .when{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-4)}
+
+  /* risks bubbles */
+  .risk-row{display:grid;grid-template-columns:64px 1fr 80px 24px;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);font-size:12px;align-items:center}
+  .risk-row:last-child{border-bottom:none}
+  .risk-row .id{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+  .risk-row .ti{color:var(--ink);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .risk-row .pi{display:flex;gap:2px;align-items:center;font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+  .risk-row .pi .pip{width:8px;height:8px;border-radius:50%;background:var(--bg-3)}
+  .risk-row .pi .pip.on{background:var(--tone-red-bd)}
+  .risk-row .score{font-family:var(--mono);font-weight:700;font-size:12px;color:var(--ink);text-align:center}
+
+  /* decisions */
+  .dec-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line);font-size:12.5px}
+  .dec-row:last-child{border-bottom:none}
+  .dec-row .id{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+  .dec-row .ti{flex:1;min-width:0;color:var(--ink);font-weight:500}
+  .dec-row .impact{font-family:var(--mono);font-size:10.5px;color:var(--tone-purple-ink);background:var(--tone-purple-bg);border:1px solid var(--tone-purple-bd);border-radius:4px;padding:1px 6px}
+  .dec-row .due{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+
+  /* mini diary feed */
+  .feed{padding:6px 12px;font-size:12.5px}
+  .feed .it{display:flex;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line);align-items:flex-start}
+  .feed .it:last-child{border-bottom:none}
+  .feed .it .t{font-family:var(--mono);font-size:10.5px;color:var(--ink-4);width:38px;flex:0 0 auto;padding-top:2px}
+  .feed .it .text{color:var(--ink-2);line-height:1.45}
+  .feed .it .text .ref{font-family:var(--mono);font-size:11px;background:var(--bg-2);border:1px solid var(--line);border-radius:3px;padding:0 4px;color:var(--ink-2);text-decoration:none}
+
+  /* quick log bar at bottom */
+  .quicklog{position:sticky;bottom:0;margin:14px -22px -60px;background:var(--surface);border-top:1px solid var(--line);padding:10px 22px;display:flex;gap:8px;align-items:center}
+  .quicklog .input{flex:1;border:1px solid var(--line);border-radius:var(--r-3);padding:6px 10px;font-family:var(--sans);font-size:13px;background:var(--bg);outline:none}
+  .quicklog .input:focus{border-color:var(--accent);box-shadow:var(--ring)}
+</style>
+</head>
+<body>
+<div id="dt-shell" data-active="home"></div>
+<script src="daytrack-data.js"></script>
+<script src="daytrack-shell.js"></script>
+<script>
+  DT_Shell.mount({ crumbs:['DayTrack', DT_DATA.project.name, 'Home'], wide:true });
+  const D = DT_DATA;
+  const root = document.getElementById('dt-content');
+
+  const head = `
+    <div class="b-head">
+      <div>
+        <h1>Wednesday <span class="day">12 Mar</span></h1>
+        <div class="sub">${D.project.name} · ${D.project.phase} · ${D.project.daysToFEL3} days to FEL3</div>
+      </div>
+      <div class="controls">
+        <div class="seg">
+          <span class="opt on">Today</span>
+          <span class="opt">This week</span>
+          <span class="opt">Sprint</span>
+          <span class="opt">All</span>
+        </div>
+        <button class="btn">Filter</button>
+        <button class="btn primary">+ Quick log <kbd style="margin-left:4px;background:rgba(255,255,255,.2);border-color:transparent;color:#fff">L</kbd></button>
+      </div>
+    </div>`;
+
+  const progress = `
+    <div class="progress">
+      <div>
+        <div class="lbl">Project</div>
+        <div class="pct">${D.project.pct}<span style="font-size:24px;color:var(--ink-3)">%</span></div>
+      </div>
+      <div class="stat"><div class="lbl">FEL3 in</div><div class="v">${D.project.daysToFEL3}d</div></div>
+      <div class="stat"><div class="lbl">Spent</div><div class="v">£${D.project.budget.spent}M<span style="color:var(--ink-3);font-size:13px"> / ${D.project.budget.total}</span></div></div>
+      <div class="stat"><div class="lbl">Risks (H/M/L)</div><div class="v">${D.project.risks.high}<span style="color:var(--ink-3)">/${D.project.risks.med}/${D.project.risks.low}</span></div></div>
+      <div class="stat gates-mini">
+        <div class="lbl">Phase progress</div>
+        <div class="gates">
+          <span class="g done">FEL1</span>
+          <span class="g done">FEL2</span>
+          <span class="g now">Detail design</span>
+          <span class="g future">Procure</span>
+          <span class="g future">Build</span>
+          <span class="g future">Commission</span>
+        </div>
+      </div>
+    </div>`;
+
+  const kpis = `
+    <div class="kpis" style="margin-bottom:14px">
+      ${D.kpis.map(k=>`
+        <div class="kpi ${k.tone||''}">
+          <div class="lbl">${k.lbl}</div>
+          <div class="num t-num">${k.num}</div>
+          <div class="delta">${k.delta}</div>
+          <div class="t-micro" style="margin-top:6px">${k.hint}</div>
+        </div>`).join('')}
+    </div>`;
+
+  // Week strip
+  const week = `
+    <div class="panel span-12">
+      <div class="ph"><h3>This week</h3><span class="ct">17 events</span><div class="right"><span>W11 · 9–15 Mar</span></div></div>
+      <div class="pb pad">
+        <div class="wk week-cells">
+          ${D.week.map(d=>`
+            <div class="day ${d.today?'today':''}">
+              <div class="row between"><span class="dn">${d.dn}</span><span class="dnum">${d.dnum}</span></div>
+              ${d.evs.map((e,i)=>`<div class="ev ${i===0?'tone-blue':i===1?'tone-orange':'tone-purple'}">${e.t}</div>`).join('')}
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+
+  const onyou = `
+    <div class="panel span-5">
+      <div class="ph"><h3>On you today</h3><span class="ct">${D.onyou.length}</span><div class="right"><a href="#">All actions →</a></div></div>
+      <div class="pb">
+        ${D.onyou.map(a=>`
+          <div class="ou ${a.late?'late':''}">
+            <div class="chk"></div>
+            <span class="tone sq ${a.kind==='action'?'orange':a.kind==='decision'?'purple':'blue'}">${a.kind}</span>
+            <span class="ti">${a.ti}</span>
+            <span class="due">${a.due}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+  const slipping = `
+    <div class="panel span-4">
+      <div class="ph"><h3>Slipping</h3><span class="ct">${D.slipping.length}</span><div class="right"><a href="#">Gantt →</a></div></div>
+      <div class="pb">
+        ${D.slipping.map(s=>`
+          <div class="slip-row">
+            <span class="id">${s.id}</span>
+            <span class="ti">${s.ti}</span>
+            <span class="d was">${s.was}</span>
+            <span class="d now">${s.now}</span>
+            <span class="by">${s.slip}</span>
+            <span>${D.avatar(s.by.toLowerCase(),'sm')}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+  const decisions = `
+    <div class="panel span-3">
+      <div class="ph"><h3>Decisions due</h3><span class="ct">${D.decisions.length}</span></div>
+      <div class="pb">
+        ${D.decisions.map(d=>`
+          <div class="dec-row">
+            <span class="id">${d.id}</span>
+            <span class="ti">${d.ti}</span>
+            <span class="impact">${d.impact}</span>
+            <span class="due">${d.due}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+  // Risks: render with pip rows for probability and impact
+  function pips(n){ return Array.from({length:5}, (_,i)=>`<span class="pip ${i<n?'on':''}"></span>`).join(''); }
+  const risks = `
+    <div class="panel span-5">
+      <div class="ph"><h3>Top risks</h3><span class="ct">5/36</span><div class="right"><a href="#">Risk register →</a></div></div>
+      <div class="pb">
+        <div class="risk-row" style="background:var(--bg-2);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:600">
+          <span>ID</span><span>Risk</span><span>P · I</span><span>Score</span><span></span>
+        </div>
+        ${D.risks.map(r=>`
+          <div class="risk-row">
+            <span class="id">${r.id}</span>
+            <span class="ti">${r.ti}</span>
+            <span class="pi">${pips(r.p)}<span style="color:var(--ink-4)">·</span>${pips(r.i)}</span>
+            <span class="score">${r.p*r.i}</span>
+            <span>${D.avatar(r.owner,'sm')}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+  const moves = `
+    <div class="panel span-4 moves">
+      <div class="ph"><h3>Recent gate moves</h3><span class="ct">12 today</span></div>
+      <div class="pb">
+        ${D.moves.map(m=>`
+          <div class="mv">
+            <span class="id">${m.id}</span>
+            <span class="from">${m.from}</span>
+            <span class="arrow">→</span>
+            <span class="to">${m.to}</span>
+            ${D.avatar(m.who,'sm')}
+            <span class="when">${m.when}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+  const feed = `
+    <div class="panel span-3">
+      <div class="ph"><h3>Today's diary</h3><span class="ct">${D.today.length}</span><div class="right"><a href="#">Open →</a></div></div>
+      <div class="pb">
+        <div class="feed">
+          ${D.today.slice(-7).reverse().map(e=>`
+            <div class="it">
+              <span class="t">${e.t}</span>
+              <span class="text"><span class="tone sq ${
+                e.type==='note'?'yellow':e.type==='gate'?'green':e.type==='action'?'orange':e.type==='decision'?'purple':e.type==='risk'?'red':'blue'
+              }">${e.type}</span> ${D.hilite(e.text)}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+
+  const quicklog = `
+    <div class="quicklog">
+      <span class="t-eyebrow" style="color:var(--ink-3)">Quick log</span>
+      <input class="input" placeholder='/note "Walked plinth — clean" #SAG-mill' />
+      <span class="muted t-micro">Press <kbd>L</kbd> from anywhere</span>
+      <button class="btn primary">Log <kbd style="margin-left:4px;background:rgba(255,255,255,.2);border-color:transparent;color:#fff">↵</kbd></button>
+    </div>`;
+
+  root.innerHTML = `
+    ${head}
+    ${progress}
+    ${kpis}
+    <div class="b-grid">
+      ${week}
+      ${onyou}
+      ${slipping}
+      ${decisions}
+      ${risks}
+      ${moves}
+      ${feed}
+    </div>
+    ${quicklog}
+  `;
+</script>
+</body>
+</html>

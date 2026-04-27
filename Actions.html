@@ -1,0 +1,309 @@
+# Handoff: DayTrack — daily-companion project tracker
+
+## Overview
+DayTrack is a project-tracking webapp designed around a **daily-driver model**: project managers and engineers log their day inline (notes, decisions, actions, risks, gate moves), and that stream becomes both the audit trail and the source of truth for the wider project register. The opposite of "fill out a status report on Friday" — instead, the report writes itself.
+
+The product context in these mockups is a single capital project ("South Plant — Phase 2", a mineral processing build), but the same model is intended to support multi-project portfolios.
+
+## About the design files
+The HTML files in `designs/` are **design references created in HTML** — high-fidelity prototypes showing intended look, layout, density, copy and interaction patterns. They are **not production code to copy directly**.
+
+The task is to **recreate these designs in your target codebase's existing environment** (React, Vue, SvelteKit, etc.), using its established component library, routing, state management, and design tokens. If no environment exists yet, pick the most appropriate framework (React + Vite + a headless component lib like Radix or shadcn/ui is a reasonable default) and implement there.
+
+The HTML uses vanilla JS with a small shared shell (`daytrack-shell.js`) and per-page scripts. Treat each `<page>.html` as a *spec for one route*, and each shared CSS/JS file as a *spec for the design system*.
+
+## Fidelity
+**High-fidelity (hifi).** Colors, spacing, typography, and layout are intentional. Recreate pixel-perfectly, then connect to your real data layer.
+
+The design system is documented in `designs/daytrack.css` (tokens + primitives) and `designs/daytrack-register.css` (two-pane register pattern). Lift values directly from those files.
+
+## Information architecture
+
+The left sidebar (`daytrack-shell.js`) defines the navigation:
+
+```
+Today        Track          Reference         Admin
+─────        ─────          ─────────         ─────
+Home         Pipelines      Item detail       Database
+Diary        Gantt          People            Edit modes
+Meetings     Actions        Watching
+             Decisions      Library
+             Risks
+```
+
+Routes mocked in this handoff:
+
+| Route          | File                       | Purpose |
+|----------------|----------------------------|---------|
+| `/`            | `Home.html`                | Today's diary spine + collapsible status drawer |
+| `/actions`     | `Actions.html`             | Action register, two-pane |
+| `/decisions`   | `Decisions.html`           | Decision register w/ options + approvals |
+| `/risks`       | `Risks.html`               | Risk register w/ 5×5 heatmap |
+| `/watching`    | `Watching.html`            | User's watch list — pulse per item |
+| `/library`     | `Library.html`             | Document library w/ revisions & where-used |
+| `/people`      | `People.html`              | People grid — load + 14d pulse |
+| `/meetings`    | `Meetings.html`            | Live + past meetings w/ captured outputs |
+| `/pipelines`   | `Pipelines.html`           | Kanban board across project gates |
+| `/items/:id`   | `Item Detail.html`         | Item page — gate strip, unified timeline |
+
+Three Home variations sit in `designs/_alt/` for context on the design exploration; only `Home.html` is the chosen direction.
+
+## Shared chrome (every page)
+
+**Sidebar** (`daytrack-shell.js`)
+- Brand mark + version pill ("D", "DayTrack v0.4")
+- Project picker (current: "South Plant — Phase 2")
+- 4 nav groups (Today / Track / Reference / Admin) — each with `+` to create a new item of that type
+- Counts on every nav row (e.g. "Actions 47")
+- Active row: `var(--ink)` background, white text, accent left bar
+
+**Topbar**
+- Breadcrumb (DayTrack › Project › Page) — last segment bold
+- Search box (Cmd+K) with placeholder "Search items, actions, people…"
+- Notification bell (badge count)
+- "+ New" button with `N` shortcut
+- User avatar
+
+Both are ~49px and 240px respectively. Use the existing routing layout to render them once.
+
+## Design system
+
+### Type
+- **Serif** (`Source Serif 4`, weights 400/500/600) — page titles, item titles, KPI numbers. Keep weight ≤ 500 to feel editorial.
+- **Sans** (`Inter`, weights 400–700) — UI labels, body text, buttons, navigation.
+- **Mono** (`JetBrains Mono`, weights 400/500) — IDs, timestamps, numeric counters, kbd shortcuts. Use `font-feature-settings: "tnum" 1` for tabular numbers.
+
+Type scale (classes in `daytrack.css`):
+```
+.t-display 36/1.1     -.02em   serif 500
+.t-h1      28/1.15    -.015em  serif 500
+.t-h2      22/1.2     -.012em  serif 500
+.t-h3      15/1.3     -.005em  sans 600
+.t-h4      13/1.3      .005em  sans 600
+.t-eyebrow 11/1.2      .06em   sans 600 UPPERCASE
+.t-body    13/1.55              sans 400 ink-2
+.t-small   12/1.45              sans 400 ink-3
+.t-micro   11/1.35              sans 400 ink-3
+.t-mono    11.5/1.35            mono 400
+```
+
+### Color tokens (light only)
+
+Surface: `--bg #fafaf9` · `--bg-2 #f4f4f2` · `--bg-3 #ededeb` · `--surface #ffffff`
+Ink: `--ink #18181b` · `--ink-2 #3f3f46` · `--ink-3 #71717a` · `--ink-4 #a1a1aa` · `--ink-5 #d4d4d8`
+Lines: `--line #e7e7e4` · `--line-2 #dcdcd8` · `--line-3 #c8c8c4`
+Accent (primary): `--accent #1f6feb` · `--accent-h #1858c4` · `--accent-bg #eff5ff` · `--accent-bd #c8d8f7`
+
+Status palette — every tone has a `bg / bd / ink` triple. **Render any status as one HSL family**: light `bg`, mid `bd` border, dark `ink` text. The `.tone <color>` and `.tone <color> sq` helper classes in `daytrack.css` produce pills and inline tags.
+
+```
+yellow  #fff7d6 / #f3d97a / #6b4f00
+red     #fde8e7 / #f1b3b1 / #8a1d1a
+green   #e3f6ea / #a8d9b9 / #155a2c
+blue    #e6f0ff / #b5cff7 / #1f4a99
+purple  #efe9ff / #cdbcfb / #4a2c9c
+orange  #ffeedb / #f4c58a / #8a4500
+pink    #fde6ee / #f1b3c7 / #8a1d4f
+grey    #f0f0ee / #d4d4d0 / #52525b
+```
+
+Semantic mapping used in the prototypes:
+- **action** → orange
+- **decision** → purple
+- **risk** → red
+- **review** → blue
+- **note** → grey
+- **gate move** → accent (blue) or status-tone of destination
+
+### Spacing & radius
+```
+--s-1..13   2,4,6,8,10,12,14,16,20,24,32,40,56  px
+--r-1..5    4, 6, 8, 10, 14                      px
+```
+Cards default to `--r-3` (8px). Pills `--r-2` (6px). Avatars circular.
+
+### Shadow
+```
+--sh-1   0 1px 0 rgba(17,17,17,.04)                                — flush card
+--sh-2   0 1px 2px rgba(17,17,17,.06), 0 1px 0 rgba(17,17,17,.04) — raised card / row
+--sh-3   0 4px 12px rgba(17,17,17,.06), 0 1px 0 rgba(17,17,17,.04)— floating panel
+--sh-pop 0 16px 40px rgba(17,17,17,.18), 0 2px 6px rgba(17,17,17,.08) — popovers / menus
+--ring   0 0 0 3px rgba(31,111,235,.18)                            — focus ring
+```
+
+## Core components
+
+### Avatar
+Circular initials chip in one of the 8 status tones, three sizes: `sm` (18px), default (22px), `lg` (28px). Helper: `D.avatar(personId, size)` in `daytrack-data.js`.
+
+### Tone pill (`<span class="tone <color>">label</span>`)
+Status labels: `bg` fill, `bd` 1px border, `ink` text. Add `.sq` modifier for inline-with-text squared variant.
+
+### Reference link (`<a class="ref">#ID-123</a>`)
+Mono, accent color, dotted underline on hover. Opens the item detail page in-app. ID prefixes are conventional:
+`ACT-` action · `DEC-` decision · `RSK-` risk · `MTG-` meeting · `DRW-` drawing · plus item-type prefixes (CIV-, PID-, SAG-, CV-, …).
+
+### Buttons
+- `.btn` — default; `.btn.primary` — `--ink` bg, white text; `.btn.ghost` — transparent; `.btn.icon` — square icon-only
+- `.btn.sm` — compact for inline toolbars
+- `kbd` slot at right for shortcut hint
+
+### KPI tile (Home)
+4 tiles in a row: large number (serif), label below, delta hint, optional tone (`warn`/`danger`).
+
+### Two-pane register (`daytrack-register.css` + `daytrack-register.js`)
+Used by Actions, Decisions, Risks, Watching, Library, Meetings.
+
+```
+┌──────────────────────────┬───────────────────────────────────────┐
+│ Title  47   sort  ☐  ⋯   │  ID · linked refs                      │
+│ ─────────────────────────│  H1 — item title                       │
+│ Tabs (On you / All / …)  │  meta row (status, owner, due, …)      │
+│ Filter chips             │  ───────────────────────────────────── │
+│ ─────────────────────────│  sub-tabs (Overview / Activity / …)    │
+│ ▼ Late                3  │  ┌────────────────┬─────────────────┐  │
+│   row · row · row        │  │ body            │ aside           │  │
+│ ▼ Today               2  │  │ description     │ Quick facts     │  │
+│   row · row              │  │ sub-tasks       │ Linked items    │  │
+│ ▼ This week           4  │  │ compose         │ Other watchers  │  │
+│   …                      │  └────────────────┴─────────────────┘  │
+│ Foot: J/K  X  E  L       │  Keybar: ⌘↵ done · J/K · E · R · L     │
+└──────────────────────────┴───────────────────────────────────────┘
+```
+
+- Left list: **420px** fixed (collapses below 1100px viewport)
+- Detail body grid: `1fr 320px`, collapses to single column below 1280px
+- Buckets are sticky-headered groups (`.rg-bucket`) — labels are register-specific (Late/Today/Later, Critical/High/Medium, Drawings/Calcs/Specs, etc.)
+- Detail pane: header (ids + title + meta + actions), sub-tabs, body grid, sticky keybar at bottom
+
+### Pipeline board (Pipelines.html)
+Horizontal scrolling kanban. 7 gate columns, each 280px wide, `--bg-2` background. Cards are `--surface` with optional left accent bar (3px) for "moved this week" pulse, and `#fff8f7` background for late items.
+
+### Item detail (Item Detail.html)
+- **Gates strip**: 7 horizontal segments showing project lifecycle. Past gates green-tinted, current gate inverted (dark with accent underline), future gates plain, late forecast gates red-tinted.
+- **Unified timeline**: vertical line with colored dots per event type (gate / decision / action / risk / note). Mono timestamp, person + event title, then body.
+- **Slash command compose**: textarea with `/note /decision /action /risk /move gate` buttons that switch the input into structured-entry mode.
+
+### Heatmap (Risks.html, Home.html)
+- 5×5 P×I matrix with cells tinted by score band: lo (green-tint) → md (yellow-tint) → hi (orange-tint) → cr (red-tint).
+- Risk pip = ID number in a dark circle, positioned in its P/I cell.
+- Plus a 12-week activity heatmap on Home (GitHub-style, 5 intensity steps).
+
+## Interactions
+
+### Keyboard model
+The app is keyboard-first. Universal:
+- `Cmd+K` — global search / command palette
+- `N` — new item (contextual to current page)
+- `J` / `K` — next / previous item in list
+- `Esc` — close popover / focused detail
+
+Per-register keys (shown in the bottom keybar of every register):
+- Actions: `⌘↵` mark done · `E` snooze · `R` reassign · `L` log note
+- Decisions: `⌘↵` approve · `D` defer · `R` reject
+- Risks: `⌘↵` close · `M` mitigate · `R` reassess
+- Watching: `M` mute · `O` open project · `N` nudge owner
+- Library: `O` open · `D` download · `C` comment
+
+### Live updates
+Several views reflect "live" state — show a pulsing dot animation for in-progress events:
+- Meetings: live meeting has `tone red` chip with 6px pulsing dot (1.4s ease)
+- Item detail: gate currently in progress = inverted dark cell with accent underline
+- Pipeline cards: `flag-pulse` modifier = 3px accent left border for items moved this week
+
+### Drawer pattern (Home)
+The status drawer at the top of `Home.html` is **collapsed by default** (single strip showing summary counts). Clicking expands it to reveal KPIs, week strip, slipping items, decisions due, risks, recent gate moves. `?status=open` deep-links the open state. Persist last state to localStorage.
+
+### Diary entry composer (Home, Item detail)
+Single textarea that accepts:
+- Plain prose → logged as a `note`
+- `/decision /action /risk /move gate` slash commands → structured entry with type-specific fields
+- `#ID` references autocomplete to items
+- `@person` mentions autocomplete to people
+
+Every diary entry is timestamped (mono) and tagged with author avatar.
+
+## State management
+
+State you'll need (suggested keys):
+- `currentProject` — the active project context (drives sidebar pill, scopes all queries)
+- `nav.activeRoute` — for sidebar highlight
+- `register.<type>.{filters, sort, selectedId, search}` — per-register UI state, persist to URL/localStorage
+- `home.statusDrawerOpen` — persist to localStorage
+- `meetings.<id>.live` — active meeting websocket state
+- `notifications` — count + list
+
+### Data shape
+`designs/daytrack-data.js` is the **canonical mock data shape**. Every page uses it. Real backend should expose endpoints with the same shape:
+
+- `Person { id, name, initials, color, role }`
+- `Project { id, code, name, phase, pct, daysToFEL3, color, budget, risks }`
+- `DiaryEntry { t, type, text, refs[], who }` — type ∈ note/gate/meeting/action/decision/risk
+- `OnYouItem { id, kind, ti, due, late, from }`
+- `SlippingItem { id, ti, was, now, slip, by }`
+- `Decision { id, ti, due, impact, owner }`
+- `Risk { id, ti, p, i, owner, tone }` — p,i ∈ 1..5
+- `WeekDay { dn, dnum, today?, evs[] }`
+
+## Screenshots
+
+PNG previews of each page are in `screenshots/` for at-a-glance reference:
+
+```
+screenshots/
+├── 01-Home.png
+├── 02-Pipelines.png
+├── 03-Actions.png
+├── 04-Decisions.png
+├── 05-Risks.png
+├── 06-Watching.png
+├── 07-Library.png
+├── 08-People.png
+├── 09-Meetings.png
+└── 10-Item-Detail.png
+```
+
+## Files in this bundle
+
+```
+design_handoff_daytrack/
+├── README.md                              ← you are here
+└── designs/
+    ├── Home.html                          chosen Home direction
+    ├── Actions.html
+    ├── Decisions.html
+    ├── Risks.html
+    ├── Watching.html
+    ├── Library.html
+    ├── People.html
+    ├── Meetings.html
+    ├── Pipelines.html
+    ├── Item Detail.html
+    ├── daytrack.css                       design tokens + primitives
+    ├── daytrack-register.css              two-pane register pattern
+    ├── daytrack-shell.js                  sidebar + topbar chrome
+    ├── daytrack-data.js                   canonical mock data shape
+    ├── daytrack-register.js               register list/detail builder
+    └── _alt/                              earlier home explorations (context only)
+        ├── Home A - Editorial Diary.html
+        ├── Home B - Cockpit.html
+        └── Home C - Two-pane Inbox.html
+```
+
+To preview, open any `.html` file in a browser — they're standalone and reference each other through relative links.
+
+## Suggested implementation order
+1. **Tokens + chrome** — port `daytrack.css` to your token system. Build the sidebar + topbar shell as a layout component.
+2. **Avatar, Tone pill, Ref link, Button** — atomic components, used everywhere.
+3. **Two-pane register** — most reused pattern. Make it generic with a column config + detail-renderer slot. Build Actions first, then map Decisions/Risks/Watching/Library/Meetings onto it.
+4. **Home** — KPI tiles + collapsible drawer + diary feed + composer.
+5. **Pipeline board** — kanban, drag handlers later.
+6. **Item detail** — gate strip + unified timeline + slash composer. This is the heaviest single page.
+7. **People + Pipelines + Gantt** — visual-rich pages, do last.
+
+## Notes
+- **Light mode only** in this design. If dark mode is in scope, derive a parallel token set; the structure already supports it via CSS variables.
+- **No emoji** — the prototypes use unicode symbols (◐ ✎ ☷ ⇉ ≡ ✓ ◆ △ ⊡ ☺ ⊙ ⎙ ⛁ ⌨) for nav icons. Replace with your icon library; the meanings are documented in `daytrack-shell.js` `navGroups`.
+- **No avatar images** — initials-on-color is intentional. Real photos optional but keep initials fallback.
+- **Density is intentional** — this is a tool for power users. Don't add padding to "breathe"; keep the editorial-but-dense feel.
+- **Tabular numbers** — every count, ID, timestamp, percentage uses mono with `tnum` enabled. Don't let the sans font handle numbers in tables.

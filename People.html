@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DayTrack — Library</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="daytrack.css">
+<link rel="stylesheet" href="daytrack-register.css">
+</head>
+<body>
+<div id="dt-shell" data-active="library"></div>
+<script src="daytrack-data.js"></script>
+<script src="daytrack-shell.js"></script>
+<script src="daytrack-register.js"></script>
+<script>
+  DT_Shell.mount({ crumbs:['DayTrack', DT_DATA.project.name, 'Library'], wide:true });
+  const D = DT_DATA;
+
+  const all = [
+    { id:'DRW-1142', ti:'SAG-mill plinth — interface drawing',    rev:'C', owner:'mr', mod:'Today',  cat:'drawings' },
+    { id:'PID-D',    ti:'Process & Instrumentation Diagram Rev D', rev:'D', owner:'pv', mod:'Today',  cat:'drawings' },
+    { id:'CALC-AQ-3.2', ti:'PM10 dispersion calc — revised',      rev:'2', owner:'sk', mod:'Yest',   cat:'calcs' },
+    { id:'SPEC-CONC',ti:'Concrete spec C40/C50',                  rev:'B', owner:'ai', mod:'Mon',    cat:'specs' },
+    { id:'MIN-118',  ti:'Steerco minutes — 12 Mar',               rev:'-', owner:'jt', mod:'Mon',    cat:'minutes' },
+    { id:'MIN-117',  ti:'Vendor call PV — switchgear',            rev:'-', owner:'lr', mod:'Fri',    cat:'minutes' },
+    { id:'RPT-AQ',   ti:'AQ assessment final report',              rev:'1', owner:'sk', mod:'Mar 22', cat:'reports' },
+    { id:'RPT-Q1',   ti:'Q1 progress report — board',              rev:'-', owner:'jt', mod:'Mar 30', cat:'reports' },
+    { id:'CON-FLEN', ti:'Flender PO — gearbox',                    rev:'-', owner:'jt', mod:'Mar 12', cat:'contracts' },
+    { id:'PHOTO-S',  ti:'Site walk — south yard',                 rev:'-', owner:'me', mod:'Tue',    cat:'photos' },
+  ];
+
+  const buckets = [
+    { label:'Drawings',  rows: all.filter(r=>r.cat==='drawings') },
+    { label:'Calcs',     rows: all.filter(r=>r.cat==='calcs') },
+    { label:'Specs',     rows: all.filter(r=>r.cat==='specs') },
+    { label:'Minutes',   rows: all.filter(r=>r.cat==='minutes') },
+    { label:'Reports',   rows: all.filter(r=>r.cat==='reports') },
+    { label:'Contracts', rows: all.filter(r=>r.cat==='contracts') },
+    { label:'Photos',    rows: all.filter(r=>r.cat==='photos') },
+  ];
+
+  const cols = { list:[
+    { kind:'id',    key:'id', w:78 },
+    { kind:'plain', key:'ti', bold:true, flex:1 },
+    { kind:'mono',  key:'rev', w:24 },
+    { kind:'mono',  key:'mod', w:48 },
+  ] };
+
+  const detailHtml = `
+    <div class="rg-dh">
+      <div>
+        <div class="ids">DRW-1142 · linked to <span class="ref">CIV-014</span> <span class="ref">SAG-mill</span> · supersedes <span class="ref">DRW-1141</span></div>
+        <h1>SAG-mill plinth — interface drawing, Rev C</h1>
+        <div class="meta">
+          <span class="tone blue">drawing</span>
+          <span>Owner ${D.avatar('mr','sm')} <b>Marc R.</b></span>
+          <span>Issued <b>Today</b> 11:42</span>
+          <span>Status <span class="tone yellow" style="margin-left:4px">in review</span></span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn">Open</button>
+        <button class="btn">Download</button>
+        <button class="btn primary">Comment</button>
+      </div>
+    </div>
+    <div class="rg-subtabs">
+      <div class="tab on">Preview</div>
+      <div class="tab">Revisions <span class="ct">3</span></div>
+      <div class="tab">Comments <span class="ct">5</span></div>
+      <div class="tab">Where used <span class="ct">4</span></div>
+    </div>
+    <div class="rg-body">
+      <div>
+        <div class="rg-section">
+          <div class="rg-card" style="padding:0;overflow:hidden;height:380px;background:#1a1f2a;display:flex;align-items:center;justify-content:center;color:#5f6b7c;font-family:var(--mono);font-size:11px">
+            <svg width="80%" height="80%" viewBox="0 0 600 360" stroke="#48566a" fill="none" stroke-width="1">
+              <rect x="40" y="40" width="520" height="280" stroke="#6b7a8f"/>
+              <rect x="80" y="80" width="200" height="120" /><rect x="320" y="80" width="200" height="120" />
+              <line x1="80" y1="220" x2="520" y2="220" /><line x1="80" y1="260" x2="520" y2="260" stroke-dasharray="4 4"/>
+              <text x="300" y="340" fill="#6b7a8f" text-anchor="middle" font-size="10" font-family="JetBrains Mono">DRW-1142 · plan view · scale 1:50</text>
+            </svg>
+          </div>
+        </div>
+        <div class="rg-section"><h3>Comments</h3>
+          <div class="rg-card flush">
+            <div style="padding:10px 14px;border-bottom:1px solid var(--line)"><b>${D.avatar('pv','sm')} Pavel V.</b> · <span class="t-mono muted">today 14:02</span><p style="margin:4px 0 0">Bolt pattern needs revision for Siemens gearbox — see DEC-027.</p></div>
+            <div style="padding:10px 14px"><b>${D.avatar('sk','sm')} Sarah K.</b> · <span class="t-mono muted">today 12:33</span><p style="margin:4px 0 0">Drainage path looks good. Minor: dim string on south face.</p></div>
+          </div>
+        </div>
+      </div>
+      <aside>
+        <div class="rg-section"><h3>Quick facts</h3>
+          <div class="rg-card">
+            <dl class="rg-facts">
+              <dt>ID</dt><dd class="t-mono">DRW-1142</dd>
+              <dt>Rev</dt><dd>C</dd>
+              <dt>Owner</dt><dd>${D.avatar('mr','sm')} Marc R.</dd>
+              <dt>Format</dt><dd>PDF · 1.2MB</dd>
+              <dt>Sheets</dt><dd>4</dd>
+              <dt>Issued</dt><dd>Today 11:42</dd>
+              <dt>Supersedes</dt><dd class="t-mono">DRW-1141 (B)</dd>
+            </dl>
+          </div>
+        </div>
+        <div class="rg-section"><h3>Where used</h3>
+          <div class="rg-card" style="font-size:12px">
+            <div class="row" style="margin-bottom:5px"><a class="ref">CIV-014</a><span class="muted">plinth pour</span></div>
+            <div class="row" style="margin-bottom:5px"><a class="ref">DEC-027</a><span class="muted">gearbox switch</span></div>
+            <div class="row" style="margin-bottom:5px"><a class="ref">RFI-088</a><span class="muted">vendor query</span></div>
+            <div class="row"><a class="ref">SAG-mill</a><span class="muted">parent</span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="rg-keybar"><span class="k"><kbd>O</kbd> open</span><span class="k"><kbd>D</kbd> download</span><span class="k"><kbd>C</kbd> comment</span><span style="margin-left:auto">${all.length} files · 12 GB used</span></div>`;
+
+  DT_Register.mount({
+    title:'Library', totalCount: 247,
+    tabs:[{label:'All', ct:247},{label:'My files', ct:34},{label:'Recent', ct:18}],
+    filters:['All','Drawings','Calcs','Specs','Minutes','Reports','Photos','Contracts'],
+    cols, buckets, selected:'DRW-1142', completeKey:'open',
+    sortBy:['Modified','Name','Owner','Category'],
+    detailHtml,
+  });
+</script>
+</body>
+</html>

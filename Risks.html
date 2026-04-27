@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DayTrack — People</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="daytrack.css">
+<link rel="stylesheet" href="daytrack-register.css">
+<style>
+.pp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;padding:18px 22px}
+.pp-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-3);padding:14px;box-shadow:var(--sh-1);cursor:pointer;transition:.12s}
+.pp-card:hover{box-shadow:var(--sh-2);border-color:var(--line-3)}
+.pp-card.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}
+.pp-h{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+.pp-h .nm{font-family:var(--serif);font-size:16px;font-weight:500;color:var(--ink);line-height:1.2}
+.pp-h .rl{font-size:11.5px;color:var(--ink-3)}
+.pp-bar{display:flex;height:6px;border-radius:99px;overflow:hidden;background:var(--bg-3);margin:6px 0 8px}
+.pp-bar > span{display:block}
+.pp-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:11px}
+.pp-stats .s{text-align:center;padding:5px 4px;background:var(--bg-2);border-radius:var(--r-2)}
+.pp-stats .s b{display:block;font-family:var(--mono);font-weight:600;font-size:14px;color:var(--ink)}
+.pp-stats .s span{color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-size:9.5px;font-weight:600}
+.pp-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;font-size:11px;color:var(--ink-3)}
+.pp-pulse{display:flex;gap:2px}
+.pp-pulse i{width:5px;height:14px;background:var(--bg-3);border-radius:1px;display:block}
+.pp-pulse i.lo{background:#cfdcd1}.pp-pulse i.md{background:#a6c0aa}.pp-pulse i.hi{background:#5fa06b}.pp-pulse i.tp{background:#3a7846}
+</style>
+</head>
+<body>
+<div id="dt-shell" data-active="people"></div>
+<script src="daytrack-data.js"></script>
+<script src="daytrack-shell.js"></script>
+<script>
+  DT_Shell.mount({ crumbs:['DayTrack', DT_DATA.project.name, 'People'], wide:true });
+  const D = DT_DATA;
+  const root = document.getElementById('dt-content');
+  root.style.padding = '0';
+
+  const enriched = D.people.filter(p=>p.id!=='me').map(p=>({
+    ...p,
+    open:  3 + Math.floor(Math.random()*7),
+    late:  Math.floor(Math.random()*3),
+    decs:  Math.floor(Math.random()*4),
+    risks: Math.floor(Math.random()*3),
+    cap:   Math.floor(40+Math.random()*60),    // capacity %
+    pulse: Array.from({length:14}, ()=>Math.floor(Math.random()*4)),
+    last:  ['just now','12m ago','38m ago','1h ago','2h ago','this morning','yesterday'][Math.floor(Math.random()*7)],
+  }));
+  enriched[0].cap = 92; enriched[0].late = 2; enriched[0].open = 9;
+  enriched[2].cap = 105; enriched[2].late = 3;
+  enriched[4].cap = 35;
+
+  function bar(p){
+    const open = p.open, late = p.late, decs = p.decs, risks = p.risks;
+    const tot = open+late+decs+risks||1;
+    return `<div class="pp-bar">
+      <span style="width:${late/tot*100}%;background:var(--tone-red-bd)" title="Late"></span>
+      <span style="width:${open/tot*100}%;background:var(--tone-orange-bd)" title="Open"></span>
+      <span style="width:${decs/tot*100}%;background:var(--tone-purple-bd)" title="Decisions"></span>
+      <span style="width:${risks/tot*100}%;background:var(--tone-yellow-bd)" title="Risks"></span>
+    </div>`;
+  }
+  function pulse(p){
+    return `<div class="pp-pulse" title="14-day activity">${p.pulse.map(v=>`<i class="${['','lo','md','hi','tp'][v]||''}"></i>`).join('')}</div>`;
+  }
+  function capTone(c){ return c>100?'red':c>=80?'orange':c>=50?'green':'grey'; }
+
+  const tabs = `
+    <div class="rg-lh" style="border-bottom:1px solid var(--line)">
+      <h2>People</h2>
+      <span class="ct">${enriched.length}</span>
+      <div class="rg-lh-actions">
+        <select class="rg-sel"><option>Sort: load</option><option>Late count</option><option>Capacity</option><option>Last active</option></select>
+        <div class="row" style="gap:0">
+          <button class="btn icon" title="Card view" style="border-right:0;border-radius:var(--r-2) 0 0 var(--r-2)">▦</button>
+          <button class="btn icon" title="List view" style="border-radius:0 var(--r-2) var(--r-2) 0">≡</button>
+        </div>
+        <button class="btn">+ Invite</button>
+      </div>
+    </div>
+    <div class="rg-filter">
+      <span class="rg-chip on">All ${enriched.length}</span>
+      <span class="rg-chip">Internal 5</span>
+      <span class="rg-chip">External 2</span>
+      <span class="rg-chip">Overloaded 2</span>
+      <span class="rg-chip">Has late items 4</span>
+      <span class="rg-chip">Mentioned today 5</span>
+    </div>`;
+
+  const cards = enriched.map((p,i)=>`
+    <div class="pp-card ${i===0?'sel':''}">
+      <div class="pp-h">
+        ${D.avatar(p.id,'lg')}
+        <div>
+          <div class="nm">${p.name}</div>
+          <div class="rl">${p.role}</div>
+        </div>
+        <div style="margin-left:auto;text-align:right">
+          <div class="t-mono" style="font-size:11px;color:var(--ink-3)">load</div>
+          <div class="tone ${capTone(p.cap)} sq" style="font-family:var(--mono);font-weight:700">${p.cap}%</div>
+        </div>
+      </div>
+      ${bar(p)}
+      <div class="pp-stats">
+        <div class="s"><b style="color:${p.late>0?'var(--tone-red-ink)':'var(--ink)'}">${p.late}</b><span>late</span></div>
+        <div class="s"><b>${p.open}</b><span>open</span></div>
+        <div class="s"><b>${p.decs}</b><span>decs</span></div>
+        <div class="s"><b>${p.risks}</b><span>risks</span></div>
+      </div>
+      <div class="pp-foot">
+        ${pulse(p)}
+        <span>active <b style="color:var(--ink)">${p.last}</b></span>
+      </div>
+    </div>
+  `).join('');
+
+  root.innerHTML = `${tabs}<div class="pp-grid">${cards}</div>`;
+</script>
+</body>
+</html>
