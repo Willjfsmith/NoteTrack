@@ -266,7 +266,7 @@ do $$
 declare
   t text;
   per_project text[] := array[
-    'people','pipelines','pipeline_stages','items','entries',
+    'people','pipelines','items','entries',
     'attachments'
   ];
 begin
@@ -277,6 +277,24 @@ begin
     execute format('create policy %1$s_delete on public.%1$s for delete using (public.is_editor(project_id))', t);
   end loop;
 end $$;
+
+-- ----- pipeline_stages: no direct project_id; join through pipelines -----
+create policy pipeline_stages_read on public.pipeline_stages
+  for select using (
+    exists(select 1 from public.pipelines pl
+      where pl.id = pipeline_stages.pipeline_id and public.is_member(pl.project_id)));
+create policy pipeline_stages_write on public.pipeline_stages
+  for insert with check (
+    exists(select 1 from public.pipelines pl
+      where pl.id = pipeline_stages.pipeline_id and public.is_editor(pl.project_id)));
+create policy pipeline_stages_update on public.pipeline_stages
+  for update using (
+    exists(select 1 from public.pipelines pl
+      where pl.id = pipeline_stages.pipeline_id and public.is_editor(pl.project_id)));
+create policy pipeline_stages_delete on public.pipeline_stages
+  for delete using (
+    exists(select 1 from public.pipelines pl
+      where pl.id = pipeline_stages.pipeline_id and public.is_editor(pl.project_id)));
 
 -- ----- tables linked via entry_id: gate via parent entry's project ---
 create policy actions_read   on public.actions   for select using (
