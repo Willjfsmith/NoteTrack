@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DayTrack — Risks</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="daytrack.css">
+<link rel="stylesheet" href="daytrack-register.css">
+<style>
+.matrix{display:grid;grid-template-columns:auto repeat(5,1fr);grid-template-rows:auto repeat(5,42px);gap:2px;font-family:var(--mono);font-size:10.5px}
+.matrix .lbl{display:flex;align-items:center;justify-content:center;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-size:9.5px}
+.matrix .axis{color:var(--ink-3);font-size:10px;writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;padding:6px 0}
+.matrix .cell{border:1px solid var(--line);border-radius:3px;display:flex;align-items:center;justify-content:center;color:var(--ink-3);position:relative;font-weight:600}
+.matrix .cell.lo{background:#f4faf6}
+.matrix .cell.md{background:#fff7d6}
+.matrix .cell.hi{background:#ffe1da}
+.matrix .cell.cr{background:#fcc8c5}
+.matrix .cell .pip{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--ink);color:#fff;font-family:var(--mono);font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700;border:2px solid #fff;box-shadow:var(--sh-1)}
+</style>
+</head>
+<body>
+<div id="dt-shell" data-active="risks"></div>
+<script src="daytrack-data.js"></script>
+<script src="daytrack-shell.js"></script>
+<script src="daytrack-register.js"></script>
+<script>
+  DT_Shell.mount({ crumbs:['DayTrack', DT_DATA.project.name, 'Risks'], wide:true });
+  const D = DT_DATA;
+
+  const more = [
+    { id:'RSK-002', ti:'Vendor schedule slippage — global',  p:3, i:3, owner:'jt', status:'open' },
+    { id:'RSK-011', ti:'Steel price exposure',                p:3, i:2, owner:'mr', status:'open' },
+    { id:'RSK-026', ti:'Site labour shortage in Q3',          p:4, i:3, owner:'jt', status:'open' },
+    { id:'RSK-031', ti:'Weather impact on plinth pour',       p:2, i:3, owner:'ai', status:'mitigating' },
+    { id:'RSK-009', ti:'AQ permit variation rejected',        p:1, i:5, owner:'jt', status:'closed', tone:'green' },
+  ];
+  const all = [...D.risks.map(r=>({...r,status:'open'})), ...more];
+
+  const cols = { list:[
+    { kind:'id', key:'id', w:60 },
+    { kind:'plain', key:'ti', bold:true, flex:1 },
+    { kind:'plain', key:'score', w:32 },
+  ] };
+
+  // attach score
+  all.forEach(r=>r.score = r.p*r.i);
+  const open = all.filter(r=>r.status!=='closed').sort((a,b)=>b.score-a.score);
+  const closed = all.filter(r=>r.status==='closed');
+
+  const buckets = [
+    { label:'Critical (12+)', rows: open.filter(r=>r.score>=12) },
+    { label:'High (8–11)',    rows: open.filter(r=>r.score>=8 && r.score<12) },
+    { label:'Medium (4–7)',   rows: open.filter(r=>r.score>=4 && r.score<8) },
+    { label:'Closed',         rows: closed },
+  ];
+
+  // matrix cells
+  function tone(p,i){ const s=p*i; return s>=15?'cr':s>=10?'hi':s>=5?'md':'lo'; }
+  let matrix = '<div class="lbl">P/I</div>';
+  for (let i=1;i<=5;i++) matrix += `<div class="lbl">I${i}</div>`;
+  for (let p=5;p>=1;p--){
+    matrix += `<div class="lbl">P${p}</div>`;
+    for (let i=1;i<=5;i++){
+      const items = all.filter(r=>r.p===p && r.i===i && r.status!=='closed');
+      const cls = `cell ${tone(p,i)}`;
+      const pips = items.slice(0,1).map(r=>`<span class="pip" title="${r.ti}">${r.id.replace('RSK-','')}</span>`).join('');
+      matrix += `<div class="${cls}">${pips || (items.length>1?items.length:'')}</div>`;
+    }
+  }
+
+  const detailHtml = `
+    <div class="rg-dh">
+      <div>
+        <div class="ids">RSK-014 · linked to <span class="ref">SWG-401</span> <span class="ref">SAG-mill</span></div>
+        <h1>HV switchgear lead time — 5w slip risk</h1>
+        <div class="meta">
+          <span class="tone red">risk</span>
+          <span>P <b>4</b> · I <b>4</b> · Score <b>16</b></span>
+          <span>Owner ${D.avatar('lr','sm')} <b>Leo R.</b></span>
+          <span>Raised Mon 12 Mar</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn">Reassess</button>
+        <button class="btn">Mitigate</button>
+        <button class="btn primary">Close risk</button>
+      </div>
+    </div>
+    <div class="rg-subtabs">
+      <div class="tab on">Overview</div>
+      <div class="tab">Mitigations <span class="ct">3</span></div>
+      <div class="tab">History <span class="ct">7</span></div>
+    </div>
+    <div class="rg-body">
+      <div>
+        <div class="rg-section"><h3>Description</h3>
+          <div class="rg-card"><p>Vendor PV confirmed lead time on HV switchgear has slipped from 14 to 19 weeks due to global silicon steel shortage. Without mitigation, energisation milestone slips by 5 weeks.</p></div>
+        </div>
+        <div class="rg-section"><h3>Mitigations</h3>
+          <div class="rg-card flush">
+            <div style="padding:10px 14px;border-bottom:1px solid var(--line)"><b>Sourcing backup vendor</b> — see <a class="ref">DEC-028</a><div class="t-small muted">Owner: You · Due Wed</div></div>
+            <div style="padding:10px 14px;border-bottom:1px solid var(--line)"><b>Sequence change</b> — energise Sub B first<div class="t-small muted">Owner: Leo R. · In progress</div></div>
+            <div style="padding:10px 14px"><b>Expedite fee</b> with PV — quoted £42k for 3w pull<div class="t-small muted">Owner: Procurement · Pending decision</div></div>
+          </div>
+        </div>
+        <div class="rg-section"><h3>Residual</h3>
+          <div class="rg-card"><div class="row"><span>After mitigations:</span><span class="tone yellow" style="margin-left:auto">P2 · I3 · 6 (Medium)</span></div></div>
+        </div>
+      </div>
+      <aside>
+        <div class="rg-section"><h3>Heat map</h3>
+          <div class="rg-card"><div class="matrix">${matrix}</div></div>
+        </div>
+        <div class="rg-section"><h3>Quick facts</h3>
+          <div class="rg-card">
+            <dl class="rg-facts">
+              <dt>ID</dt><dd class="t-mono">RSK-014</dd>
+              <dt>Status</dt><dd><span class="tone red">open</span></dd>
+              <dt>Trend</dt><dd>↗ worsening</dd>
+              <dt>Triggers</dt><dd>vendor confirmation</dd>
+              <dt>Cost exposure</dt><dd>£0–£42k</dd>
+              <dt>Time exposure</dt><dd>5w</dd>
+            </dl>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="rg-keybar"><span class="k"><kbd>⌘↵</kbd> close risk</span><span class="k"><kbd>M</kbd> mitigate</span><span class="k"><kbd>R</kbd> reassess</span><span style="margin-left:auto">${open.length} open · ${closed.length} closed</span></div>`;
+
+  DT_Register.mount({
+    title:'Risks', totalCount: 36,
+    tabs:[{label:'Open', ct:open.length},{label:'Closed', ct:closed.length},{label:'All', ct:36}],
+    filters:['All','Mine','Critical','High','Medium','Trending up'],
+    cols, buckets, selected:'RSK-014',
+    completeKey:'close',
+    detailHtml,
+  });
+</script>
+</body>
+</html>

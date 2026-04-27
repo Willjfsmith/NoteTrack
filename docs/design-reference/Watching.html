@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DayTrack — Watching</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="daytrack.css">
+<link rel="stylesheet" href="daytrack-register.css">
+</head>
+<body>
+<div id="dt-shell" data-active="watching"></div>
+<script src="daytrack-data.js"></script>
+<script src="daytrack-shell.js"></script>
+<script src="daytrack-register.js"></script>
+<script>
+  DT_Shell.mount({ crumbs:['DayTrack', DT_DATA.project.name, 'Watching'], wide:true });
+  const D = DT_DATA;
+
+  const all = [
+    { id:'CIV-014', ti:'Plinth pour — main mill', owner:'ai', due:'Apr 3', status:'on track',  ti_sub:'gate: Construct → Commission' },
+    { id:'PID-D',   ti:'P&ID Rev D issuance',     owner:'pv', due:'Apr 5', status:'at risk',   ti_sub:'gate: Design → Construct · 2 days late' },
+    { id:'CIV-013', ti:'Foundation pour CIV-013', owner:'mr', due:'Apr 1', status:'blocked',   ti_sub:'blocked by ACT-228' },
+    { id:'SWG-401', ti:'HV switchgear delivery',  owner:'lr', due:'May 18',status:'at risk',   ti_sub:'5w slip — see RSK-014' },
+    { id:'ENV-AQ-3',ti:'AQ permit variation',     owner:'jt', due:'Apr 8', status:'on track',  ti_sub:'awaiting regulator reply' },
+    { id:'CONV-202',ti:'Conveyor CV-202 install', owner:'mr', due:'May 2', status:'on track',  ti_sub:'gate: Construct' },
+    { id:'COMM-A',  ti:'Sub A energisation',      owner:'lr', due:'May 22',status:'on track',  ti_sub:'gate: Commission' },
+  ];
+
+  const cols = { list:[
+    { kind:'id', key:'id', w:72 },
+    { kind:'plain', key:'ti', bold:true, flex:1 },
+    { kind:'plain', key:'status', w:64 },
+  ] };
+
+  const buckets = [
+    { label:'Needs attention', rows: all.filter(r=>['at risk','blocked'].includes(r.status)) },
+    { label:'On track',        rows: all.filter(r=>r.status==='on track') },
+  ];
+
+  const detailHtml = `
+    <div class="rg-dh">
+      <div>
+        <div class="ids">PID-D · part of <span class="ref">SAG-mill</span></div>
+        <h1>P&IDs Rev D — issuance</h1>
+        <div class="meta">
+          <span class="tone red">at risk</span>
+          <span>Gate <b>Design → Construct</b></span>
+          <span>Owner ${D.avatar('pv','sm')} <b>Pavel V.</b></span>
+          <span><b>2 days late</b></span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn">Mute</button>
+        <button class="btn">Open project</button>
+        <button class="btn primary">Nudge owner</button>
+      </div>
+    </div>
+    <div class="rg-subtabs">
+      <div class="tab on">Pulse</div>
+      <div class="tab">Activity <span class="ct">12</span></div>
+      <div class="tab">Linked items <span class="ct">5</span></div>
+    </div>
+    <div class="rg-body">
+      <div>
+        <div class="rg-section"><h3>Why you're watching</h3>
+          <div class="rg-card"><p>You added this on 18 Mar — flagged as a <b>schedule-critical</b> deliverable feeding two downstream gates.</p></div>
+        </div>
+        <div class="rg-section"><h3>Recent pulse</h3>
+          <div class="rg-card flush">
+            <div style="padding:10px 14px;border-bottom:1px solid var(--line)"><span class="t-mono muted">Today 09:14</span> · Pavel pushed gate from Mon → Wed <span class="tone red sq" style="margin-left:6px">slip</span></div>
+            <div style="padding:10px 14px;border-bottom:1px solid var(--line)"><span class="t-mono muted">Yest 16:02</span> · Marc commented on plinth interface drawing</div>
+            <div style="padding:10px 14px;border-bottom:1px solid var(--line)"><span class="t-mono muted">Mon</span> · Decision <a class="ref">DEC-026</a> approved — superseded Rev C</div>
+            <div style="padding:10px 14px"><span class="t-mono muted">Fri</span> · 4 review comments resolved by Sarah</div>
+          </div>
+        </div>
+        <div class="rg-section"><h3>Trend</h3>
+          <div class="rg-card"><p>Gate has slipped by <b>2 days</b> over the last 14 days. Forecast date held since Wed.</p></div>
+        </div>
+      </div>
+      <aside>
+        <div class="rg-section"><h3>Quick facts</h3>
+          <div class="rg-card">
+            <dl class="rg-facts">
+              <dt>ID</dt><dd class="t-mono">PID-D</dd>
+              <dt>Owner</dt><dd>${D.avatar('pv','sm')} Pavel V.</dd>
+              <dt>Status</dt><dd><span class="tone red">at risk</span></dd>
+              <dt>Forecast</dt><dd>Wed Apr 5</dd>
+              <dt>Watchers</dt><dd>${['me','jt','mr'].map(p=>D.avatar(p,'sm')).join('')} 3</dd>
+              <dt>Notify on</dt><dd>slips · decisions · comments</dd>
+            </dl>
+          </div>
+        </div>
+        <div class="rg-section"><h3>Other watchers</h3>
+          <div class="rg-card" style="font-size:12px"><div class="row" style="margin-bottom:5px">${D.avatar('jt','sm')} Jules T. <span class="muted" style="margin-left:auto">slips only</span></div><div class="row">${D.avatar('mr','sm')} Marc R. <span class="muted" style="margin-left:auto">all updates</span></div></div>
+        </div>
+      </aside>
+    </div>
+    <div class="rg-keybar"><span class="k"><kbd>M</kbd> mute</span><span class="k"><kbd>O</kbd> open project</span><span class="k"><kbd>N</kbd> nudge</span><span style="margin-left:auto">Watching ${all.length} items</span></div>`;
+
+  DT_Register.mount({
+    title:'Watching', totalCount: all.length,
+    tabs:[{label:'All', ct:all.length},{label:'At risk', ct: all.filter(r=>r.status!=='on track').length},{label:'Muted', ct:2}],
+    filters:['All','Slipping','Pulse today','Mine','Team'],
+    cols, buckets, selected:'PID-D', completeKey:'mute',
+    detailHtml,
+  });
+</script>
+</body>
+</html>

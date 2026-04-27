@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DayTrack — Decisions</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="daytrack.css">
+<link rel="stylesheet" href="daytrack-register.css">
+</head>
+<body>
+<div id="dt-shell" data-active="decisions"></div>
+<script src="daytrack-data.js"></script>
+<script src="daytrack-shell.js"></script>
+<script src="daytrack-register.js"></script>
+<script>
+  DT_Shell.mount({ crumbs:['DayTrack', DT_DATA.project.name, 'Decisions'], wide:true });
+  const D = DT_DATA;
+
+  const all = [
+    { id:'DEC-027', ti:'Switch SAG-mill gearbox vendor — Flender → Siemens', due:'Today', impact:'£180k · −2w', owner:'jt', status:'open',     src:'MTG-118' },
+    { id:'DEC-028', ti:'Backup HV switchgear vendor selection',              due:'Wed',   impact:'5w lead',     owner:'me', status:'open',     src:'RSK-014' },
+    { id:'DEC-029', ti:'Concrete mix C40 → C50 for plinth pour',             due:'Fri',   impact:'£24k',        owner:'ai', status:'open',     src:'CIV-014' },
+    { id:'DEC-026', ti:'P&ID rev D — supersedes rev C',                       due:'Mon',   impact:'config',      owner:'pv', status:'approved', src:'PID-D' },
+    { id:'DEC-024', ti:'Concrete spec C40 — keep current',                    due:'-',     impact:'no change',   owner:'jt', status:'approved', src:'CIV-013' },
+    { id:'DEC-022', ti:'AQ permit variation — accept regulator wording',      due:'-',     impact:'closes RSK-009', owner:'jt', status:'approved', src:'ENV-AQ-3' },
+    { id:'DEC-021', ti:'Conveyor CV-202 vendor — Outotec',                    due:'-',     impact:'£0',          owner:'mr', status:'superseded', src:'-' },
+  ];
+
+  const buckets = [
+    { label:'Awaiting decision', rows: all.filter(r=>r.status==='open') },
+    { label:'Recently approved', rows: all.filter(r=>r.status==='approved') },
+    { label:'Superseded',        rows: all.filter(r=>r.status==='superseded') },
+  ];
+
+  const cols = {
+    list: [
+      { kind:'id', key:'id', w:60 },
+      { kind:'plain', key:'ti', bold:true, flex:1 },
+      { kind:'due', key:'due', w:48 },
+    ]
+  };
+
+  const detailHtml = `
+    <div class="rg-dh">
+      <div>
+        <div class="ids">DEC-027 · linked to <span class="ref">SAG-mill</span> <span class="ref">RSK-021</span></div>
+        <h1>Switch SAG-mill gearbox vendor — Flender → Siemens</h1>
+        <div class="meta">
+          <span class="tone purple">decision</span>
+          <span><b>Due today</b> · 16:00</span>
+          <span>Owner ${D.avatar('jt','sm')} <b>Jules T.</b></span>
+          <span>Approver ${D.avatar('me','sm')} You</span>
+          <span>Impact <b>£180k</b> · −2w schedule</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn">Defer</button>
+        <button class="btn">Reject</button>
+        <button class="btn primary">Approve <kbd style="margin-left:4px;background:rgba(255,255,255,.2);border-color:transparent;color:#fff">⌘↵</kbd></button>
+      </div>
+    </div>
+    <div class="rg-subtabs">
+      <div class="tab on">Overview</div>
+      <div class="tab">Options <span class="ct">2</span></div>
+      <div class="tab">Activity <span class="ct">14</span></div>
+      <div class="tab">Approvals <span class="ct">3/4</span></div>
+    </div>
+    <div class="rg-body">
+      <div>
+        <div class="rg-section">
+          <h3>Question</h3>
+          <div class="rg-card"><p>Should we switch the SAG-mill gearbox vendor from Flender to Siemens to recover schedule?</p></div>
+        </div>
+        <div class="rg-section">
+          <h3>Options</h3>
+          <div class="rg-card flush">
+            <div style="padding:12px 14px;border-bottom:1px solid var(--line)">
+              <div class="row" style="margin-bottom:4px"><b>Option 1 · Stay with Flender</b><span class="tone grey sq" style="margin-left:auto">baseline</span></div>
+              <p style="margin:0;color:var(--ink-3);font-size:12px">22-week lead time. Existing PO. No design rework.</p>
+              <div class="row" style="margin-top:6px;font-size:11.5px"><span class="muted">Cost</span><b style="color:var(--ink)">£0</b><span class="muted">·</span><span class="muted">Schedule</span><b style="color:var(--tone-red-ink)">+0</b><span class="muted">·</span><span class="muted">Risk</span><b>medium</b></div>
+            </div>
+            <div style="padding:12px 14px;background:var(--accent-bg)">
+              <div class="row" style="margin-bottom:4px"><b>Option 2 · Switch to Siemens</b><span class="tone blue sq" style="margin-left:auto">recommended</span></div>
+              <p style="margin:0;color:var(--ink-3);font-size:12px">14-week lead time. Compatible footprint per Pavel. Foundation bolt pattern needs minor revision (DRW-1142).</p>
+              <div class="row" style="margin-top:6px;font-size:11.5px"><span class="muted">Cost</span><b style="color:var(--tone-orange-ink)">+£180k</b><span class="muted">·</span><span class="muted">Schedule</span><b style="color:var(--tone-green-ink)">−2w</b><span class="muted">·</span><span class="muted">Risk</span><b>low</b></div>
+            </div>
+          </div>
+        </div>
+        <div class="rg-section">
+          <h3>Approvals</h3>
+          <div class="rg-card">
+            <div class="row" style="margin-bottom:4px">${D.avatar('sk','sm')} Sarah K. · process<span class="tone green sq" style="margin-left:auto">approved</span></div>
+            <div class="row" style="margin-bottom:4px">${D.avatar('mr','sm')} Marc R. · mech<span class="tone green sq" style="margin-left:auto">approved</span></div>
+            <div class="row" style="margin-bottom:4px">${D.avatar('jt','sm')} Jules T. · PM<span class="tone green sq" style="margin-left:auto">approved</span></div>
+            <div class="row">${D.avatar('me','sm')} You · sponsor<span class="tone yellow sq" style="margin-left:auto">pending</span></div>
+          </div>
+        </div>
+      </div>
+      <aside>
+        <div class="rg-section"><h3>Quick facts</h3>
+          <div class="rg-card">
+            <dl class="rg-facts">
+              <dt>ID</dt><dd class="t-mono">DEC-027</dd>
+              <dt>Status</dt><dd><span class="tone yellow">awaiting</span></dd>
+              <dt>Owner</dt><dd>${D.avatar('jt','sm')} Jules T.</dd>
+              <dt>Approver</dt><dd>${D.avatar('me','sm')} You</dd>
+              <dt>Cost impact</dt><dd>+£180k</dd>
+              <dt>Sched impact</dt><dd>−2 weeks</dd>
+              <dt>Source</dt><dd class="t-mono">MTG-118</dd>
+            </dl>
+          </div>
+        </div>
+        <div class="rg-section"><h3>Supersedes</h3>
+          <div class="rg-card" style="font-size:12px"><div class="row"><a class="ref">DEC-021</a><span class="muted">Outotec gearbox</span></div></div>
+        </div>
+      </aside>
+    </div>
+    <div class="rg-keybar">
+      <span class="k"><kbd>⌘↵</kbd> approve</span>
+      <span class="k"><kbd>J</kbd>/<kbd>K</kbd> prev/next</span>
+      <span class="k"><kbd>D</kbd> defer</span>
+      <span class="k"><kbd>R</kbd> reject</span>
+      <span style="margin-left:auto">1 of ${all.filter(r=>r.status==='open').length} open</span>
+    </div>`;
+
+  DT_Register.mount({
+    title:'Decisions', totalCount: 18,
+    tabs:[{label:'Open', ct: buckets[0].rows.length},{label:'Approved', ct: buckets[1].rows.length},{label:'All', ct:18}],
+    filters:['All','Awaiting me','High impact','Recent','Superseded'],
+    cols, buckets, selected:'DEC-027',
+    completeKey:'approve',
+    detailHtml,
+  });
+</script>
+</body>
+</html>
