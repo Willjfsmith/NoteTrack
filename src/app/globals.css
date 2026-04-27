@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== NoteTrack design tokens (ported from daytrack.css) ===== */
+:root {
+  --bg: #fafaf9;
+  --bg-2: #f4f4f2;
+  --bg-3: #ededeb;
+  --surface: #ffffff;
+  --surface-2: #f8f8f6;
+  --overlay: rgba(17, 17, 17, 0.55);
+
+  --ink: #18181b;
+  --ink-2: #3f3f46;
+  --ink-3: #71717a;
+  --ink-4: #a1a1aa;
+  --ink-5: #d4d4d8;
+
+  --line: #e7e7e4;
+  --line-2: #dcdcd8;
+  --line-3: #c8c8c4;
+  --focus: #1f6feb;
+
+  --accent: #1f6feb;
+  --accent-h: #1858c4;
+  --accent-bg: #eff5ff;
+  --accent-bd: #c8d8f7;
+  --accent-ink: #ffffff;
+
+  --tone-yellow-bg: #fff7d6;
+  --tone-yellow-bd: #f3d97a;
+  --tone-yellow-ink: #6b4f00;
+
+  --tone-red-bg: #fde8e7;
+  --tone-red-bd: #f1b3b1;
+  --tone-red-ink: #8a1d1a;
+
+  --tone-green-bg: #e3f6ea;
+  --tone-green-bd: #a8d9b9;
+  --tone-green-ink: #155a2c;
+
+  --tone-blue-bg: #e6f0ff;
+  --tone-blue-bd: #b5cff7;
+  --tone-blue-ink: #1f4a99;
+
+  --tone-purple-bg: #efe9ff;
+  --tone-purple-bd: #cdbcfb;
+  --tone-purple-ink: #4a2c9c;
+
+  --tone-orange-bg: #ffeedb;
+  --tone-orange-bd: #f4c58a;
+  --tone-orange-ink: #8a4500;
+
+  --tone-pink-bg: #fde6ee;
+  --tone-pink-bd: #f1b3c7;
+  --tone-pink-ink: #8a1d4f;
+
+  --tone-grey-bg: #f0f0ee;
+  --tone-grey-bd: #d4d4d0;
+  --tone-grey-ink: #52525b;
+
+  --r-1: 4px;
+  --r-2: 6px;
+  --r-3: 8px;
+  --r-4: 10px;
+  --r-5: 14px;
+
+  --sh-1: 0 1px 0 rgba(17, 17, 17, 0.04);
+  --sh-2: 0 1px 2px rgba(17, 17, 17, 0.06), 0 1px 0 rgba(17, 17, 17, 0.04);
+  --sh-3: 0 4px 12px rgba(17, 17, 17, 0.06), 0 1px 0 rgba(17, 17, 17, 0.04);
+  --sh-pop: 0 16px 40px rgba(17, 17, 17, 0.18), 0 2px 6px rgba(17, 17, 17, 0.08);
+  --ring: 0 0 0 3px rgba(31, 111, 235, 0.18);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans), ui-sans-serif, system-ui;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Focus rings everywhere */
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--r-2);
+}

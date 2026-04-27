@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DayTrack — Meetings</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="daytrack.css">
+<link rel="stylesheet" href="daytrack-register.css">
+</head>
+<body>
+<div id="dt-shell" data-active="meetings"></div>
+<script src="daytrack-data.js"></script>
+<script src="daytrack-shell.js"></script>
+<script src="daytrack-register.js"></script>
+<script>
+  DT_Shell.mount({ crumbs:['DayTrack', DT_DATA.project.name, 'Meetings'], wide:true });
+  const D = DT_DATA;
+
+  const all = [
+    { id:'MTG-118', ti:'Steerco · weekly',          when:'Today 14:00', dur:'60m', att:6, status:'live',     a:4, d:1 },
+    { id:'MTG-117', ti:'Vendor PV — switchgear',    when:'Today 09:00', dur:'30m', att:3, status:'wrapped',  a:2, d:0 },
+    { id:'MTG-116', ti:'Daily stand-up',            when:'Today 08:30', dur:'15m', att:6, status:'wrapped',  a:1, d:0 },
+    { id:'MTG-115', ti:'Civil/struct working',      when:'Yest 15:00',  dur:'45m', att:4, status:'wrapped',  a:3, d:1 },
+    { id:'MTG-114', ti:'AQ regulator pre-call',     when:'Mon 11:00',   dur:'30m', att:3, status:'wrapped',  a:2, d:0 },
+    { id:'MTG-119', ti:'Site walk — south yard',    when:'Thu 09:00',   dur:'90m', att:5, status:'upcoming', a:0, d:0 },
+    { id:'MTG-120', ti:'Steerco prep',              when:'Fri 10:00',   dur:'45m', att:4, status:'upcoming', a:0, d:0 },
+  ];
+
+  const cols = { list:[
+    { kind:'id', key:'id', w:74 },
+    { kind:'plain', key:'ti', bold:true, flex:1 },
+    { kind:'mono', key:'when', w:88 },
+  ] };
+
+  const buckets = [
+    { label:'Today',    rows: all.filter(r=>r.when.startsWith('Today')) },
+    { label:'Upcoming', rows: all.filter(r=>r.status==='upcoming') },
+    { label:'Past',     rows: all.filter(r=>r.status==='wrapped' && !r.when.startsWith('Today')) },
+  ];
+
+  const detailHtml = `
+    <div class="rg-dh">
+      <div>
+        <div class="ids">MTG-118 · linked to <span class="ref">SAG-mill</span> <span class="ref">DEC-027</span></div>
+        <h1>Steerco · weekly</h1>
+        <div class="meta">
+          <span class="tone red"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#c43d2e;margin-right:5px;animation:pulse 1.4s infinite"></span>live</span>
+          <span><b>Today</b> 14:00 · 60m</span>
+          <span>Owner ${D.avatar('jt','sm')} <b>Jules T.</b></span>
+          <span>${[...'jtmrskaime'].slice(0,6).map((_,i)=>['jt','mr','sk','ai','me','lr'][i]).map(p=>D.avatar(p,'sm')).join('')} 6 attendees</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn">Mute</button>
+        <button class="btn">Open notes</button>
+        <button class="btn primary">Join meeting</button>
+      </div>
+    </div>
+    <div class="rg-subtabs">
+      <div class="tab on">Notes</div>
+      <div class="tab">Agenda <span class="ct">5</span></div>
+      <div class="tab">Outputs <span class="ct">5</span></div>
+      <div class="tab">Recording</div>
+    </div>
+    <div class="rg-body">
+      <div>
+        <div class="rg-section"><h3>Live notes</h3>
+          <div class="rg-card">
+            <p><b style="color:var(--ink)">14:02</b> · ${D.avatar('jt','sm')} Jules opened with schedule recap. SAG-mill plinth pour confirmed for Apr 3.</p>
+            <p><b style="color:var(--ink)">14:08</b> · ${D.avatar('lr','sm')} Leo flagged HV switchgear lead time risk → raised <a class="ref">RSK-014</a>.</p>
+            <p><b style="color:var(--ink)">14:14</b> · Discussion on gearbox vendor. Pavel confirmed Siemens footprint compatible. → <a class="ref">DEC-027</a> approved in-meeting.</p>
+            <p><b style="color:var(--ink)">14:21</b> · ${D.avatar('sk','sm')} Sarah: regulator AQ reply needs sending today → <a class="ref">ACT-244</a> assigned to you.</p>
+            <p style="color:var(--ink-3);font-style:italic">Live transcription continues…</p>
+          </div>
+        </div>
+        <div class="rg-section"><h3>Outputs captured this meeting</h3>
+          <div class="rg-card flush">
+            <div style="padding:10px 14px;border-bottom:1px solid var(--line)"><span class="tone purple sq">decision</span> <a class="ref">DEC-027</a> Switch SAG-mill gearbox vendor — approved in-meeting</div>
+            <div style="padding:10px 14px;border-bottom:1px solid var(--line)"><span class="tone red sq">risk</span> <a class="ref">RSK-014</a> HV switchgear lead time slip raised</div>
+            <div style="padding:10px 14px;border-bottom:1px solid var(--line)"><span class="tone orange sq">action</span> <a class="ref">ACT-244</a> Reply to regulator on AQ — owner You · due today 17:00</div>
+            <div style="padding:10px 14px;border-bottom:1px solid var(--line)"><span class="tone orange sq">action</span> <a class="ref">ACT-245</a> Update P6 schedule — owner Jules · due Fri</div>
+            <div style="padding:10px 14px"><span class="tone orange sq">action</span> <a class="ref">ACT-246</a> Confirm crane window — owner Aisha · due Mon</div>
+          </div>
+        </div>
+      </div>
+      <aside>
+        <div class="rg-section"><h3>Quick facts</h3>
+          <div class="rg-card">
+            <dl class="rg-facts">
+              <dt>ID</dt><dd class="t-mono">MTG-118</dd>
+              <dt>Series</dt><dd>Steerco · weekly</dd>
+              <dt>Location</dt><dd>Teams + Site Boardroom</dd>
+              <dt>Started</dt><dd>14:01 (1m late)</dd>
+              <dt>Recording</dt><dd>● transcribing</dd>
+              <dt>Outputs</dt><dd>4 actions · 1 decision · 1 risk</dd>
+            </dl>
+          </div>
+        </div>
+        <div class="rg-section"><h3>Agenda</h3>
+          <div class="rg-card flush" style="font-size:12px">
+            <div style="padding:8px 12px;border-bottom:1px solid var(--line);background:var(--accent-bg)"><b>1.</b> Schedule recap <span class="muted" style="float:right">● now</span></div>
+            <div style="padding:8px 12px;border-bottom:1px solid var(--line)"><b>2.</b> SAG-mill — gearbox decision</div>
+            <div style="padding:8px 12px;border-bottom:1px solid var(--line)"><b>3.</b> AQ permit — regulator reply</div>
+            <div style="padding:8px 12px;border-bottom:1px solid var(--line)"><b>4.</b> Risks review</div>
+            <div style="padding:8px 12px"><b>5.</b> AOB</div>
+          </div>
+        </div>
+        <div class="rg-section"><h3>Attendees</h3>
+          <div class="rg-card" style="font-size:12px">
+            ${['jt','mr','sk','ai','me','lr'].map(p=>`<div class="row" style="margin-bottom:4px">${D.avatar(p,'sm')} ${D.p(p).name}<span class="muted" style="margin-left:auto">${D.p(p).role}</span></div>`).join('')}
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="rg-keybar"><span class="k"><kbd>A</kbd> log action</span><span class="k"><kbd>D</kbd> log decision</span><span class="k"><kbd>R</kbd> log risk</span><span class="k"><kbd>N</kbd> note</span><span style="margin-left:auto">5 outputs · captured live</span></div>
+    <style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}</style>`;
+
+  DT_Register.mount({
+    title:'Meetings', totalCount: all.length,
+    tabs:[{label:'All', ct:all.length},{label:'My series', ct:4},{label:'Recurring', ct:3}],
+    filters:['All','Today','Upcoming','Past','With outputs'],
+    cols, buckets, selected:'MTG-118', completeKey:'wrap up',
+    sortBy:['Time','Series','Outputs'],
+    detailHtml,
+  });
+</script>
+</body>
+</html>

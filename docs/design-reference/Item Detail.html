@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DayTrack — Item · SAG-mill</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="daytrack.css">
+<link rel="stylesheet" href="daytrack-register.css">
+<style>
+.it-wrap{height:calc(100vh - 49px);display:flex;flex-direction:column;background:var(--bg)}
+.it-h{padding:14px 22px 12px;background:var(--surface);border-bottom:1px solid var(--line)}
+.it-h .ids{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-bottom:4px}
+.it-h h1{margin:0;font-family:var(--serif);font-size:28px;font-weight:500;letter-spacing:-.01em}
+.it-h .meta{display:flex;gap:14px;margin-top:8px;color:var(--ink-3);font-size:12px;flex-wrap:wrap;align-items:center}
+.it-h .meta b{color:var(--ink);font-weight:500}
+.it-h .actions{display:flex;gap:6px;margin-top:10px}
+
+.it-gates{display:flex;gap:0;padding:14px 22px;background:var(--bg-2);border-bottom:1px solid var(--line);overflow-x:auto}
+.it-gate{flex:1;min-width:130px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-right:0;font-size:11px;position:relative}
+.it-gate:last-child{border-right:1px solid var(--line);border-radius:0 var(--r-2) var(--r-2) 0}
+.it-gate:first-child{border-radius:var(--r-2) 0 0 var(--r-2)}
+.it-gate .nm{font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-size:10px}
+.it-gate .dt{font-family:var(--mono);font-size:11px;color:var(--ink);margin-top:3px}
+.it-gate.done{background:#f4faf6}.it-gate.done .nm{color:var(--tone-green-ink)}
+.it-gate.now{background:var(--ink);color:#fff}
+.it-gate.now .nm{color:#fff;opacity:.7}.it-gate.now .dt{color:#fff}
+.it-gate.now::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:3px;background:var(--accent)}
+.it-gate.late{background:#fff8f7}.it-gate.late .dt{color:var(--tone-red-ink);font-weight:700}
+
+.it-tabs{display:flex;padding:0 22px;border-bottom:1px solid var(--line);background:var(--surface)}
+.it-tabs .t{padding:10px 0;margin-right:22px;font-size:13px;color:var(--ink-3);cursor:pointer;border-bottom:2px solid transparent;font-weight:500}
+.it-tabs .t.on{color:var(--ink);border-bottom-color:var(--ink)}
+.it-tabs .t .ct{font-family:var(--mono);font-size:10px;color:var(--ink-4);margin-left:4px}
+
+.it-body{flex:1;overflow-y:auto;padding:18px 22px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px;align-items:start}
+@media (max-width:1280px){.it-body{grid-template-columns:1fr}}
+
+.tl{position:relative;padding-left:28px}
+.tl::before{content:'';position:absolute;left:9px;top:6px;bottom:6px;width:2px;background:var(--line);border-radius:1px}
+.tl-row{position:relative;padding:10px 0;border-bottom:1px dashed var(--line)}
+.tl-row:last-child{border-bottom:0}
+.tl-row::before{content:'';position:absolute;left:-23px;top:14px;width:10px;height:10px;border-radius:50%;background:var(--surface);border:2px solid var(--ink-3)}
+.tl-row.gate::before{background:var(--accent);border-color:var(--accent)}
+.tl-row.dec::before{background:var(--tone-purple-bd);border-color:var(--tone-purple-bd)}
+.tl-row.act::before{background:var(--tone-orange-bd);border-color:var(--tone-orange-bd)}
+.tl-row.risk::before{background:var(--tone-red-bd);border-color:var(--tone-red-bd)}
+.tl-row.note::before{background:var(--ink-3)}
+.tl-row .when{font-family:var(--mono);font-size:10.5px;color:var(--ink-4);margin-bottom:3px}
+.tl-row .who{font-weight:500;color:var(--ink)}
+.tl-row p{margin:2px 0 0;color:var(--ink-2);font-size:13px;line-height:1.5}
+</style>
+</head>
+<body>
+<div id="dt-shell" data-active="detail"></div>
+<script src="daytrack-data.js"></script>
+<script src="daytrack-shell.js"></script>
+<script>
+  DT_Shell.mount({ crumbs:['DayTrack', DT_DATA.project.name, 'Items', 'SAG-mill'], wide:true });
+  const D = DT_DATA;
+  const root = document.getElementById('dt-content');
+  root.style.padding='0';
+
+  const gates = [
+    { nm:'Concept',     dt:'15 Jan',  state:'done' },
+    { nm:'Design',      dt:'now',     state:'now' },
+    { nm:'Procurement', dt:'Apr 12',  state:'' },
+    { nm:'Fabrication', dt:'May 22',  state:'' },
+    { nm:'Construct',   dt:'Jul 8',   state:'' },
+    { nm:'Commission',  dt:'Sep 14 → +2w', state:'late' },
+    { nm:'Handover',    dt:'Oct 30',  state:'' },
+  ];
+
+  const timeline = [
+    { kind:'gate', when:'Today 09:10', who:D.avatar('jt','sm')+' Jules T.', t:'Gate move', body:'Moved to <b>Design — review</b> sub-stage.' },
+    { kind:'dec',  when:'Today 14:14', who:D.avatar('jt','sm')+' Jules T.', t:'Decision <a class="ref">DEC-027</a>', body:'Switch gearbox vendor — Flender → Siemens. Approved in Steerco.' },
+    { kind:'risk', when:'Today 11:15', who:D.avatar('lr','sm')+' Leo R.',   t:'Risk raised <a class="ref">RSK-021</a>', body:'Vendor change rework — drawings need bolt pattern revision.' },
+    { kind:'act',  when:'Today 10:48', who:D.avatar('me','sm')+' You',      t:'Action assigned <a class="ref">ACT-241</a>', body:'Markup pump curves on PMP-101 datasheet — due Thu.' },
+    { kind:'note', when:'Yest 16:02',  who:D.avatar('mr','sm')+' Marc R.',  t:'Note',  body:'Plinth interface drawing <a class="ref">DRW-1142</a> rev C issued for review.' },
+    { kind:'gate', when:'Mon 11:00',   who:D.avatar('jt','sm')+' Jules T.', t:'Gate move', body:'Moved <b>Concept → Design</b>.' },
+    { kind:'note', when:'Fri 14:20',   who:D.avatar('sk','sm')+' Sarah K.', t:'Note',  body:'Process data sheet finalised. Forwarded to vendor.' },
+  ];
+
+  root.innerHTML = `
+    <div class="it-wrap">
+      <div class="it-h">
+        <div class="ids">SAG-mill · in <span class="ref">South Plant — Phase 2</span> · type: <b>major equipment</b></div>
+        <h1>SAG-mill — gearbox &amp; drive</h1>
+        <div class="meta">
+          <span class="tone yellow">at risk</span>
+          <span>Owner ${D.avatar('sk','sm')} <b>Sarah K.</b></span>
+          <span>Discipline <b>Mechanical</b></span>
+          <span>Area <b>Mill building</b></span>
+          <span>Cost forecast <b>£2.4M</b></span>
+          <span>Watchers ${['me','jt','mr','lr'].map(p=>D.avatar(p,'sm')).join('')} 4</span>
+        </div>
+        <div class="actions">
+          <button class="btn">Watch ⊙</button>
+          <button class="btn">Move gate ▸</button>
+          <button class="btn">Log decision</button>
+          <button class="btn">Raise risk</button>
+          <button class="btn primary">+ Note</button>
+        </div>
+      </div>
+
+      <div class="it-gates">
+        ${gates.map(g=>`<div class="it-gate ${g.state}"><div class="nm">${g.nm}</div><div class="dt">${g.dt}</div></div>`).join('')}
+      </div>
+
+      <div class="it-tabs">
+        <div class="t on">Timeline <span class="ct">128</span></div>
+        <div class="t">Decisions <span class="ct">4</span></div>
+        <div class="t">Actions <span class="ct">12</span></div>
+        <div class="t">Risks <span class="ct">3</span></div>
+        <div class="t">Files <span class="ct">9</span></div>
+        <div class="t">Sub-items <span class="ct">7</span></div>
+        <div class="t">Settings</div>
+      </div>
+
+      <div class="it-body">
+        <div>
+          <div class="rg-card" style="padding:14px;margin-bottom:14px">
+            <div class="row" style="margin-bottom:8px"><b>What happened</b><span class="tone yellow sq" style="margin-left:auto">summary</span></div>
+            <p style="margin:0;color:var(--ink-2);font-size:13px;line-height:1.55">
+              Gearbox vendor switched from Flender to Siemens at today's Steerco — pulls schedule in by 2 weeks but adds £180k. Drawing rework triggered on bolt pattern (<a class="ref">DRW-1142</a>). Risk <a class="ref">RSK-021</a> raised to track rework slippage. Item remains in <b>Design — review</b> sub-stage until rev D sign-off.
+            </p>
+          </div>
+
+          <div class="rg-section"><h3>Timeline · today</h3>
+            <div class="rg-card"><div class="tl">
+              ${timeline.map(e=>`
+                <div class="tl-row ${e.kind}">
+                  <div class="when">${e.when}</div>
+                  <div class="who">${e.who} · ${e.t}</div>
+                  <p>${e.body}</p>
+                </div>`).join('')}
+            </div></div>
+          </div>
+
+          <div class="rg-section"><h3>Compose</h3>
+            <div class="rg-card">
+              <textarea style="width:100%;border:none;outline:none;font-family:var(--sans);font-size:13px;color:var(--ink);background:transparent;resize:vertical;min-height:70px" placeholder="Note, decision, action, or risk — type / for commands…"></textarea>
+              <div class="row" style="margin-top:6px">
+                <button class="btn sm">/note</button>
+                <button class="btn sm">/decision</button>
+                <button class="btn sm">/action</button>
+                <button class="btn sm">/risk</button>
+                <button class="btn sm">/move gate</button>
+                <span style="flex:1"></span>
+                <button class="btn sm primary">Log</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside>
+          <div class="rg-section"><h3>Quick facts</h3>
+            <div class="rg-card">
+              <dl class="rg-facts">
+                <dt>ID</dt><dd class="t-mono">SAG-mill</dd>
+                <dt>Type</dt><dd>Major equipment</dd>
+                <dt>Owner</dt><dd>${D.avatar('sk','sm')} Sarah K.</dd>
+                <dt>Discipline</dt><dd>Mechanical</dd>
+                <dt>Area</dt><dd>Mill building</dd>
+                <dt>Status</dt><dd><span class="tone yellow">at risk</span></dd>
+                <dt>Created</dt><dd>15 Jan 2026</dd>
+                <dt>Cost fcst</dt><dd>£2.4M (+£180k)</dd>
+              </dl>
+            </div>
+          </div>
+          <div class="rg-section"><h3>Linked</h3>
+            <div class="rg-card" style="font-size:12px">
+              <div class="row" style="margin-bottom:5px"><a class="ref">DEC-027</a><span class="muted">vendor switch</span></div>
+              <div class="row" style="margin-bottom:5px"><a class="ref">RSK-021</a><span class="muted">vendor rework</span></div>
+              <div class="row" style="margin-bottom:5px"><a class="ref">DRW-1142</a><span class="muted">plinth interface</span></div>
+              <div class="row" style="margin-bottom:5px"><a class="ref">PID-D</a><span class="muted">P&ID rev D</span></div>
+              <div class="row"><a class="ref">CIV-014</a><span class="muted">child · plinth pour</span></div>
+            </div>
+          </div>
+          <div class="rg-section"><h3>Sub-items</h3>
+            <div class="rg-card flush" style="font-size:12px">
+              <div style="padding:8px 12px;border-bottom:1px solid var(--line)"><span class="t-mono muted">CIV-014</span> Plinth pour <span class="tone green sq" style="float:right">on track</span></div>
+              <div style="padding:8px 12px;border-bottom:1px solid var(--line)"><span class="t-mono muted">DRW-1142</span> Interface drawing <span class="tone yellow sq" style="float:right">review</span></div>
+              <div style="padding:8px 12px;border-bottom:1px solid var(--line)"><span class="t-mono muted">PMP-101</span> Lubrication skid <span class="tone green sq" style="float:right">FAT pass</span></div>
+              <div style="padding:8px 12px"><span class="t-mono muted">+4 more</span></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>`;
+</script>
+</body>
+</html>

@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DayTrack — Actions</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="daytrack.css">
+<link rel="stylesheet" href="daytrack-register.css">
+</head>
+<body>
+<div id="dt-shell" data-active="actions"></div>
+<script src="daytrack-data.js"></script>
+<script src="daytrack-shell.js"></script>
+<script src="daytrack-register.js"></script>
+<script>
+  DT_Shell.mount({ crumbs:['DayTrack', DT_DATA.project.name, 'Actions'], wide:true });
+  const D = DT_DATA;
+
+  // Build action rows from on-you + a few extras
+  const more = [
+    { id:'ACT-235', kind:'action', ti:'Confirm crane access window with Aisha',                  due:'Mon',  late:false, from:'Aisha I.', who:'me', src:'CIV-014' },
+    { id:'ACT-242', kind:'action', ti:'Send updated cost forecast to finance',                   due:'Wed',  late:false, from:'Steerco',  who:'me', src:'BUDGET' },
+    { id:'ACT-228', kind:'action', ti:'Close out CIV-013 plinth drawing comments',               due:'Yest', late:true,  from:'Marc R.',  who:'me', src:'CIV-013' },
+    { id:'ACT-219', kind:'action', ti:'Issue P&ID rev D for review (Pavel)',                     due:'Fri',  late:false, from:'Pavel V.', who:'pv', src:'PID-D' },
+    { id:'ACT-217', kind:'action', ti:'Confirm spare parts list — gearbox',                      due:'Apr 5',late:false, from:'Procurement', who:'jt', src:'SAG-mill' },
+  ];
+  const all = [...D.onyou.filter(a=>a.kind==='action'), ...more];
+
+  const sel = 'ACT-244';
+  const selRow = all.find(r=>r.id===sel);
+
+  const cols = {
+    list:[
+      { kind:'tone', key:'kind', toneMap:{action:'orange',decision:'purple',review:'blue'}, w:54 },
+      { kind:'plain', key:'ti', bold:true, flex:1 },
+      { kind:'due', key:'due', w:48 },
+    ]
+  };
+
+  const buckets = [
+    { label:'Late',     rows: all.filter(r=>r.late) },
+    { label:'Today',    rows: all.filter(r=>!r.late && r.due==='Today') },
+    { label:'This week',rows: all.filter(r=>!r.late && !['Today'].includes(r.due) && ['Mon','Tue','Wed','Thu','Fri'].includes(r.due)) },
+    { label:'Later',    rows: all.filter(r=>!r.late && r.due!=='Today' && !['Mon','Tue','Wed','Thu','Fri'].includes(r.due)) },
+  ];
+
+  const detailHtml = `
+    <div class="rg-dh">
+      <div>
+        <div class="ids">ACT-244 · linked to <span class="ref">ENV-AQ-3</span> <span class="ref">SAG-mill</span></div>
+        <h1>Reply to regulator on dust assessment — ENV-AQ-3</h1>
+        <div class="meta">
+          <span class="tone orange">action</span>
+          <span><b>Due today</b> · 17:00</span>
+          <span>Owner ${D.avatar('me','sm')} <b>You</b></span>
+          <span>From ${D.avatar('jt','sm')} Jules T.</span>
+          <span>Source <span class="t-mono">MTG-118</span></span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn">Snooze</button>
+        <button class="btn">Reassign</button>
+        <button class="btn">Block</button>
+        <button class="btn primary">Mark done <kbd style="margin-left:4px;background:rgba(255,255,255,.2);border-color:transparent;color:#fff">⌘↵</kbd></button>
+      </div>
+    </div>
+    <div class="rg-subtabs">
+      <div class="tab on">Overview</div>
+      <div class="tab">Activity <span class="ct">8</span></div>
+      <div class="tab">Sub-tasks <span class="ct">3</span></div>
+      <div class="tab">Files <span class="ct">2</span></div>
+    </div>
+    <div class="rg-body">
+      <div>
+        <div class="rg-section">
+          <h3>Description</h3>
+          <div class="rg-card">
+            <p>Regulator queried two points in our AQ assessment: PM10 modelling assumptions during commissioning, and dust suppression strategy at the SAG-mill discharge. Reply needs to address both with calc revisions referenced.</p>
+            <p>Sarah has the revised PM10 figures ready — see <a class="ref">CALC-AQ-3.2</a>. Pavel signed off the suppression strategy in last week's vendor call.</p>
+          </div>
+        </div>
+
+        <div class="rg-section">
+          <h3>Sub-tasks</h3>
+          <div class="rg-card flush">
+            <div style="padding:9px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px">
+              <input type="checkbox" checked /> <span style="text-decoration:line-through;color:var(--ink-3)">Pull revised PM10 figures from Sarah</span>
+            </div>
+            <div style="padding:9px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px">
+              <input type="checkbox" checked /> <span style="text-decoration:line-through;color:var(--ink-3)">Confirm suppression strategy with Pavel</span>
+            </div>
+            <div style="padding:9px 14px;display:flex;align-items:center;gap:8px">
+              <input type="checkbox" /> <span>Draft reply letter and circulate for sign-off</span>
+              <span class="t-mono muted" style="margin-left:auto">due today</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rg-section">
+          <h3>Compose reply</h3>
+          <div class="rg-card">
+            <textarea style="width:100%;border:none;outline:none;font-family:var(--sans);font-size:13px;color:var(--ink);background:transparent;resize:vertical;min-height:90px" placeholder="Type your update — saved against this action and surfaced in the diary…">Drafted reply attached. Calc CALC-AQ-3.2 referenced for PM10. Sarah and Pavel both signed off. Suggest issuing today before 17:00.</textarea>
+            <div class="row" style="margin-top:6px">
+              <button class="btn sm ghost">@ mention</button>
+              <button class="btn sm ghost"># link</button>
+              <button class="btn sm ghost">📎 attach</button>
+              <span style="flex:1"></span>
+              <button class="btn sm">Save note</button>
+              <button class="btn sm primary">Mark done & log</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside>
+        <div class="rg-section">
+          <h3>Quick facts</h3>
+          <div class="rg-card">
+            <dl class="rg-facts">
+              <dt>ID</dt><dd class="t-mono">ACT-244</dd>
+              <dt>Type</dt><dd><span class="tone orange sq">action</span></dd>
+              <dt>Status</dt><dd><span class="tone yellow">In progress</span></dd>
+              <dt>Owner</dt><dd>${D.avatar('me','sm')} You</dd>
+              <dt>From</dt><dd>${D.avatar('jt','sm')} Jules T.</dd>
+              <dt>Source</dt><dd><span class="t-mono">MTG-118</span></dd>
+              <dt>Due</dt><dd><b>Today</b> · 17:00</dd>
+              <dt>Created</dt><dd>Mon 10:48</dd>
+            </dl>
+          </div>
+        </div>
+        <div class="rg-section">
+          <h3>Linked items</h3>
+          <div class="rg-card" style="font-size:12px">
+            <div class="row" style="margin-bottom:5px"><a class="ref">ENV-AQ-3</a><span class="muted">regulator query</span></div>
+            <div class="row" style="margin-bottom:5px"><a class="ref">SAG-mill</a><span class="muted">parent</span></div>
+            <div class="row"><a class="ref">CALC-AQ-3.2</a><span class="muted">supports reply</span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="rg-keybar">
+      <span class="k"><kbd>⌘↵</kbd> done</span>
+      <span class="k"><kbd>J</kbd>/<kbd>K</kbd> prev/next</span>
+      <span class="k"><kbd>E</kbd> snooze</span>
+      <span class="k"><kbd>R</kbd> reassign</span>
+      <span class="k"><kbd>L</kbd> log note</span>
+      <span style="margin-left:auto" class="k">3 of ${all.length} in queue</span>
+    </div>`;
+
+  DT_Register.mount({
+    title:'Actions',
+    totalCount: 47,
+    tabs:[
+      {label:'On you', ct: D.onyou.filter(a=>a.kind==='action').length},
+      {label:'I requested', ct: 6},
+      {label:'Watching', ct: 9},
+      {label:'All', ct: 47},
+    ],
+    filters:['All','Open','Late','Done','Snoozed'],
+    cols, buckets, selected: sel,
+    completeKey:'done',
+    detailHtml,
+  });
+</script>
+</body>
+</html>

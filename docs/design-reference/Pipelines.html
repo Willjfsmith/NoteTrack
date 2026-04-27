@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DayTrack — Pipelines</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="daytrack.css">
+<style>
+.pl-wrap{padding:0;height:calc(100vh - 49px);display:flex;flex-direction:column;background:var(--bg)}
+.pl-h{padding:14px 22px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.pl-h h2{margin:0;font-family:var(--serif);font-size:22px;font-weight:500;letter-spacing:-.01em}
+.pl-h .ct{font-family:var(--mono);font-size:11px;color:var(--ink-3);background:var(--bg-2);border:1px solid var(--line);border-radius:4px;padding:1px 6px}
+.pl-h .seg{display:flex;border:1px solid var(--line);border-radius:var(--r-2);overflow:hidden;background:var(--surface)}
+.pl-h .seg button{background:transparent;border:0;padding:5px 10px;font-size:11.5px;color:var(--ink-3);cursor:pointer;border-right:1px solid var(--line);font-family:var(--sans)}
+.pl-h .seg button:last-child{border-right:0}
+.pl-h .seg button.on{background:var(--ink);color:#fff}
+
+.pl-board{flex:1;overflow-x:auto;overflow-y:hidden;padding:14px 22px;display:flex;gap:12px;align-items:stretch}
+.pl-col{flex:0 0 280px;display:flex;flex-direction:column;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-3);min-height:0}
+.pl-ch{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px;background:var(--surface);border-radius:var(--r-3) var(--r-3) 0 0}
+.pl-ch .nm{font-family:var(--sans);font-size:12px;font-weight:600;color:var(--ink);text-transform:uppercase;letter-spacing:.04em}
+.pl-ch .ct{font-family:var(--mono);font-size:10.5px;background:var(--bg-2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--ink-3)}
+.pl-ch .add{margin-left:auto;color:var(--ink-3);font-size:14px;cursor:pointer;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px}
+.pl-ch .add:hover{background:var(--bg-2);color:var(--ink)}
+.pl-ch .gate{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+
+.pl-cards{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px}
+.pl-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-2);padding:9px 10px;cursor:pointer;font-size:12px;box-shadow:var(--sh-1)}
+.pl-card:hover{border-color:var(--line-3);box-shadow:var(--sh-2)}
+.pl-card .ti{font-weight:500;color:var(--ink);line-height:1.35;margin-bottom:5px}
+.pl-card .id{font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+.pl-card .meta{display:flex;align-items:center;gap:6px;margin-top:6px;color:var(--ink-3);font-size:10.5px}
+.pl-card.late{background:#fff8f7;border-color:#f4cdc6}
+.pl-card .pulse{display:inline-block;width:6px;height:6px;border-radius:50%}
+.pl-card .age{font-family:var(--mono)}
+.pl-card.flag-pulse{border-left:3px solid var(--accent);padding-left:8px}
+</style>
+</head>
+<body>
+<div id="dt-shell" data-active="pipelines"></div>
+<script src="daytrack-data.js"></script>
+<script src="daytrack-shell.js"></script>
+<script>
+  DT_Shell.mount({ crumbs:['DayTrack', DT_DATA.project.name, 'Pipelines'], wide:true });
+  const D = DT_DATA;
+  const root = document.getElementById('dt-content');
+
+  const stages = [
+    { id:'concept',     name:'Concept',     ct: 8,  tone:'#c0c0c0' },
+    { id:'design',      name:'Design',      ct: 22, tone:'#7c8aa3' },
+    { id:'procurement', name:'Procurement', ct: 14, tone:'#a8884a' },
+    { id:'fabrication', name:'Fabrication', ct: 11, tone:'#7a5b9c' },
+    { id:'construct',   name:'Construct',   ct: 17, tone:'#3e8054' },
+    { id:'commission',  name:'Commission',  ct: 8,  tone:'#3a7896' },
+    { id:'handover',    name:'Handover',    ct: 4,  tone:'#5a6a7a' },
+  ];
+
+  const items = {
+    concept: [
+      { id:'ELE-310', ti:'East yard substation feeder', age:'2d', who:'lr' },
+      { id:'CV-205',  ti:'Sample tower conveyor route', age:'5d', who:'mr' },
+    ],
+    design: [
+      { id:'PID-D',   ti:'P&ID Rev D issuance',         age:'12d', who:'pv', late:true, flag:true },
+      { id:'SAG-mill',ti:'SAG-mill gearbox + drive',    age:'8d', who:'sk', flag:true },
+      { id:'TNK-12',  ti:'Process water tank skid',     age:'4d', who:'mr' },
+      { id:'STR-220', ti:'Pipe rack PR-220 GA',         age:'7d', who:'ai' },
+      { id:'DUP-14',  ti:'Dust suppression spray ring', age:'3d', who:'sk' },
+    ],
+    procurement: [
+      { id:'SWG-401', ti:'HV switchgear', age:'21d', who:'lr', late:true, flag:true },
+      { id:'PMP-104', ti:'Recirc pump skid', age:'9d', who:'sk' },
+      { id:'INST-pk', ti:'Instrument package', age:'14d', who:'lr' },
+    ],
+    fabrication: [
+      { id:'CV-203',  ti:'Conveyor CV-203',  age:'today', who:'mr', flag:true },
+      { id:'TNK-08',  ti:'Storage tank TNK-08', age:'6d', who:'mr' },
+      { id:'STR-102', ti:'Mill structural steel', age:'11d', who:'ai' },
+    ],
+    construct: [
+      { id:'CIV-014', ti:'SAG-mill plinth pour',     age:'today', who:'ai', flag:true },
+      { id:'CIV-013', ti:'Foundation pour CIV-013',  age:'4d', who:'mr', late:true },
+      { id:'CONV-202',ti:'Conveyor CV-202 install',  age:'2d', who:'mr' },
+      { id:'PIPE-12', ti:'Process pipe gallery',     age:'8d', who:'ai' },
+    ],
+    commission: [
+      { id:'PMP-101', ti:'Pump skid — passed FAT', age:'today', who:'pv', flag:true },
+      { id:'COMM-A',  ti:'Sub A energisation',     age:'5d', who:'lr' },
+      { id:'AQ-mon',  ti:'AQ monitor station',     age:'12d', who:'sk' },
+    ],
+    handover: [
+      { id:'OFF-01',  ti:'Offices block', age:'18d', who:'jt' },
+      { id:'GATE-N',  ti:'North gate', age:'24d', who:'ai' },
+    ],
+  };
+
+  function card(it){
+    return `<div class="pl-card ${it.late?'late':''} ${it.flag?'flag-pulse':''}">
+      <div class="ti">${it.ti}</div>
+      <div class="meta">
+        <span class="id">${it.id}</span>
+        ${D.avatar(it.who,'sm')}
+        <span style="flex:1"></span>
+        ${it.late?'<span class="tone red sq">late</span>':''}
+        <span class="age">${it.age}</span>
+      </div>
+    </div>`;
+  }
+
+  const cols = stages.map(s=>{
+    const list = items[s.id] || [];
+    return `<div class="pl-col">
+      <div class="pl-ch">
+        <span class="gate" style="background:${s.tone}"></span>
+        <span class="nm">${s.name}</span>
+        <span class="ct">${s.ct}</span>
+        <span class="add" title="Add item">+</span>
+      </div>
+      <div class="pl-cards">
+        ${list.map(card).join('')}
+        ${list.length<s.ct?`<div style="text-align:center;font-size:11px;color:var(--ink-4);padding:8px 0;font-family:var(--mono)">+ ${s.ct-list.length} more</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  root.innerHTML = `
+    <div class="pl-wrap">
+      <div class="pl-h">
+        <h2>Pipelines</h2>
+        <span class="ct">${stages.reduce((a,s)=>a+s.ct,0)} items</span>
+        <span style="flex:1"></span>
+        <div class="seg" role="tablist">
+          <button class="on">Board</button>
+          <button>Gantt</button>
+          <button>Database</button>
+          <button>Calendar</button>
+        </div>
+        <div class="seg">
+          <button class="on">Status</button>
+          <button>Owner</button>
+          <button>Discipline</button>
+          <button>Area</button>
+        </div>
+        <div class="row" style="gap:6px;font-size:11.5px;color:var(--ink-3)">
+          <span style="display:inline-block;width:8px;height:8px;background:var(--accent);border-radius:50%"></span> moved this week
+          <span style="display:inline-block;width:8px;height:8px;background:#f4cdc6;border-radius:2px;margin-left:6px"></span> late
+        </div>
+        <button class="btn">Filter</button>
+        <button class="btn primary">+ New item</button>
+      </div>
+      <div class="pl-board">${cols}</div>
+    </div>`;
+</script>
+</body>
+</html>
