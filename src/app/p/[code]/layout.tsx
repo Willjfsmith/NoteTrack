@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { Sidebar } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/topbar";
+import { CommandPalette } from "@/components/shell/command-palette";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default async function ProjectLayout({
@@ -41,6 +42,7 @@ export default async function ProjectLayout({
         <TopBar crumbs={["NoteTrack", project.name]} />
         <div className="w-full max-w-[1440px] px-[22px] pb-[60px] pt-[18px]">{children}</div>
       </div>
+      <CommandPalette projectId={project.id} projectCode={project.code} />
     </div>
   );
 }

@@ -48,8 +48,14 @@ In the Supabase dashboard, open **SQL Editor → New query**, paste the contents
 
 1. `supabase/migrations/0001_init.sql` — schema, RLS, indexes
 2. `supabase/migrations/0002_seed.sql` — sample "South Plant — Phase 2" data
+3. `supabase/migrations/0003_create_project_rpc.sql` — RPC for self-serve project creation
+4. `supabase/migrations/0004_storage.sql` — storage bucket + policies for the Library
 
 Run each in order.
+
+Then in the Supabase dashboard go to **Database → Replication** and make sure the
+`entries`, `actions`, and `gate_moves` tables are added to the realtime
+publication so the app's live updates work across tabs.
 
 ### 5. Make yourself a member of the seed project
 
@@ -81,8 +87,28 @@ Open <http://localhost:3000>, click **Sign in**, request a magic link to your em
 2. Go to <https://vercel.com/new>, import the repo.
 3. In **Environment Variables**, paste the same three values from `.env.local`.
 4. Add `NEXT_PUBLIC_SITE_URL` set to your Vercel domain (e.g. `https://notetrack.vercel.app`).
-5. Click **Deploy**.
-6. After deploy, copy the deployed URL into your Supabase project's **Authentication → URL Configuration → Site URL** so magic-link redirects work.
+5. Set the **Production Branch** to `main`.
+6. Click **Deploy**.
+7. After deploy, copy the deployed URL into your Supabase project's **Authentication → URL Configuration → Site URL** so magic-link redirects work.
+
+### Branch / preview model
+
+- `main` is production. PRs into `main` get Vercel preview deploys automatically.
+- Day-to-day work happens on `claude/<topic>-<id>` branches.
+- Tag `v0.1.0` once a green build merges to `main` (use `git tag v0.1.0 && git push --tags`).
+
+### Smoke tests
+
+End-to-end smoke tests live in `tests/e2e/` (Playwright). Run them with:
+
+```bash
+pnpm exec playwright install --with-deps chromium  # one-time
+pnpm test:e2e
+```
+
+The authenticated flows (`create entry`, `drag kanban card`) are skipped by
+default — they need a logged-in fixture which is straightforward to add once a
+service-role test helper exists.
 
 ---
 
@@ -94,6 +120,8 @@ Open <http://localhost:3000>, click **Sign in**, request a magic link to your em
 | `pnpm build` | Production build (run before deploying) |
 | `pnpm typecheck` | Run TypeScript type checking |
 | `pnpm lint` | Run ESLint |
+| `pnpm test` | Run unit tests (Vitest) |
+| `pnpm test:e2e` | Run Playwright smoke tests |
 | `pnpm format` | Format the codebase with Prettier |
 
 ---
@@ -134,13 +162,14 @@ This repo is the **scaffold** (Prompts 1–6 of the build plan in `docs/BUILD_PL
 - ✅ Magic-link auth + project selection
 - ✅ Database schema + RLS + seed
 - ✅ Design tokens + primitives (Tone / Avatar / RefChip / Kbd / Button)
-- ✅ App shell + Today (Home) page in stub form
-- ⬜ Composer + slash parser (Prompt 7)
-- ⬜ Actions register (Prompt 8)
-- ⬜ Pipelines kanban (Prompt 9)
-- ⬜ Risks register (Prompt 10)
-- ⬜ Meetings live notes (Prompt 11)
-- ⬜ Library / People / Watching / Item Detail / Search (Prompt 12)
-- ⬜ Realtime / polish / deploy (Prompt 13)
+- ✅ App shell + Today (Home) page
+- ✅ Composer + slash parser + createEntry server action (Prompt 7)
+- ✅ Actions register with filters / keyboard shortcuts (Prompt 8)
+- ✅ Pipelines kanban with drag-and-drop + gate entries (Prompt 9)
+- ✅ Risks 5×5 register with heatmap (Prompt 10)
+- ✅ Meetings live notes via shared composer + realtime (Prompt 11)
+- ✅ Library / People / Watching / Item Detail / ⌘K search (Prompt 12)
+- ✅ Realtime, skeletons, error boundaries, smoke tests (Prompt 13)
 
-See `docs/BUILD_PLAN.md` for the full plan and the next prompts to run.
+Remaining setup not in the repo: import to Vercel, set env vars, set the
+production branch to `main`, and tag `v0.1.0` once the first green deploy lands.
