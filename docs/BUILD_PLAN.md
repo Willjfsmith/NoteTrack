@@ -1,6 +1,7 @@
 # NoteTrack — build plan
 
-A 13-prompt sequence for finishing the app. Prompts 1–6 are scaffolded in this commit; prompts 7–13 are still to do.
+A 13-prompt sequence for finishing the app. **All prompts (1–13) are landed.**
+This document remains as a reference for what each prompt covered.
 
 Each prompt is self-contained — paste it into a fresh Claude Code session in this repo, on the working branch `claude/plan-app-architecture-GUBli`, and let it run.
 
@@ -32,7 +33,7 @@ Sidebar (`src/components/shell/sidebar.tsx`), TopBar with breadcrumbs, project l
 
 ---
 
-## ⬜ Prompt 7 — Composer + slash parser
+## ✅ Prompt 7 — Composer + slash parser
 
 **goal/context:** Wire up entry creation. Free-text input prefixed with `/note`, `/todo`, `/done`, `/decision`, `/risk`, `/call`. `#XYZ` links items, `@id` mentions people, `$1.2k` attaches money, `due:thu` sets due date.
 
@@ -45,7 +46,7 @@ Sidebar (`src/components/shell/sidebar.tsx`), TopBar with breadcrumbs, project l
 
 ---
 
-## ⬜ Prompt 8 — Actions register
+## ✅ Prompt 8 — Actions register
 
 **goal/context:** `/p/[code]/actions` — register-style page. Reference `docs/design-reference/Actions.html`.
 
@@ -55,7 +56,7 @@ Sidebar (`src/components/shell/sidebar.tsx`), TopBar with breadcrumbs, project l
 
 ---
 
-## ⬜ Prompt 9 — Pipelines kanban
+## ✅ Prompt 9 — Pipelines kanban
 
 **goal/context:** `/p/[code]/pipelines` — drag-and-drop kanban; each move creates a `gate` entry.
 
@@ -65,7 +66,7 @@ Sidebar (`src/components/shell/sidebar.tsx`), TopBar with breadcrumbs, project l
 
 ---
 
-## ⬜ Prompt 10 — Risks register
+## ✅ Prompt 10 — Risks register
 
 **goal/context:** `/p/[code]/risks` — 5×5 register.
 
@@ -75,7 +76,7 @@ Sidebar (`src/components/shell/sidebar.tsx`), TopBar with breadcrumbs, project l
 
 ---
 
-## ⬜ Prompt 11 — Meetings (live notes)
+## ✅ Prompt 11 — Meetings (live notes)
 
 **goal/context:** `/p/[code]/meetings` — Today / Upcoming / Past. Live notes that emit child entries via the Prompt 7 parser.
 
@@ -85,7 +86,7 @@ Sidebar (`src/components/shell/sidebar.tsx`), TopBar with breadcrumbs, project l
 
 ---
 
-## ⬜ Prompt 12 — Library, People, Watching, Item Detail, Search
+## ✅ Prompt 12 — Library, People, Watching, Item Detail, Search
 
 **goal/context:** Wrap remaining surfaces. References: `Library.html`, `People.html`, `Watching.html`, `Item Detail.html`.
 
@@ -100,7 +101,7 @@ Sidebar (`src/components/shell/sidebar.tsx`), TopBar with breadcrumbs, project l
 
 ---
 
-## ⬜ Prompt 13 — Realtime, polish, deploy
+## ✅ Prompt 13 — Realtime, polish, deploy
 
 **goal/context:** Make it live, polish, ship.
 
