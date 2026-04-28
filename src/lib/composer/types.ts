@@ -10,7 +10,8 @@ export type CreateEntryInput = z.infer<typeof CreateEntryInput>;
 
 export type CreatedEntry = {
   id: string;
-  type: "note" | "action" | "decision" | "risk" | "gate" | "meeting" | "call";
+  /** Entry-type key (project-defined). System keys: note, action, decision, risk, gate, meeting, call. */
+  type: string;
   body_md: string;
   occurred_at: string;
   project_id: string;

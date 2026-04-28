@@ -59,44 +59,82 @@ export default async function PeoplePage({
         })
         .filter(Boolean) as typeof owned;
 
-    const { data: rk } = await supabase
-      .from("risks")
-      .select("entry_id, probability, impact, status, entry:entry_id ( body_md, project_id )")
-      .eq("owner_person_id", selected.id);
-    risks =
-      ((rk ?? []) as Array<{
-        entry_id: string;
-        probability: number;
-        impact: number;
-        status: string;
-        entry: { body_md: string; project_id: string } | { body_md: string; project_id: string }[] | null;
-      }>)
+    // Risks now live in entries.props with entry_type.key === 'risk'.
+    const { data: riskType } = await supabase
+      .from("entry_types")
+      .select("id")
+      .eq("project_id", project.id)
+      .eq("key", "risk")
+      .maybeSingle();
+    if (riskType) {
+      const { data: rk } = await supabase
+        .from("entries")
+        .select("id, body_md, props")
+        .eq("project_id", project.id)
+        .eq("entry_type_id", riskType.id);
+      type RiskEntry = { id: string; body_md: string; props: Record<string, unknown> | null };
+      risks = ((rk ?? []) as RiskEntry[])
         .map((row) => {
-          const entry = Array.isArray(row.entry) ? row.entry[0] : row.entry;
-          if (!entry || entry.project_id !== project.id) return null;
+          const props = row.props ?? {};
+          if (props.owner_person_id !== selected.id) return null;
+          const probability = typeof props.probability === "number" ? (props.probability as number) : null;
+          const impact = typeof props.impact === "number" ? (props.impact as number) : null;
+          if (probability == null || impact == null) return null;
           return {
-            entry_id: row.entry_id,
-            body_md: entry.body_md,
-            probability: row.probability,
-            impact: row.impact,
-            status: row.status,
+            entry_id: row.id,
+            body_md: row.body_md,
+            probability,
+            impact,
+            status: (props.status as string) ?? "open",
           };
         })
         .filter(Boolean) as typeof risks;
+    }
 
-    // Activity = entries that reference this person.
+    // Activity = entries that reference this person, joined to entry_types for the type label.
     const { data: refs } = await supabase
       .from("entry_refs")
-      .select("entry:entry_id ( id, type, body_md, occurred_at, project_id )")
+      .select(
+        `entry:entry_id (
+           id, body_md, occurred_at, project_id,
+           entry_type:entry_type_id ( key )
+         )`,
+      )
       .eq("ref_kind", "person")
       .eq("ref_id", selected.id)
       .limit(20);
+    type ActivityRow = {
+      entry: {
+        id: string;
+        body_md: string;
+        occurred_at: string;
+        project_id: string;
+        entry_type: { key: string } | { key: string }[] | null;
+      } | {
+        id: string;
+        body_md: string;
+        occurred_at: string;
+        project_id: string;
+        entry_type: { key: string } | { key: string }[] | null;
+      }[]
+        | null;
+    };
     recent =
-      ((refs ?? []) as Array<{
-        entry: { id: string; type: string; body_md: string; occurred_at: string; project_id: string } | { id: string; type: string; body_md: string; occurred_at: string; project_id: string }[] | null;
-      }>)
+      ((refs ?? []) as ActivityRow[])
         .map((r) => (Array.isArray(r.entry) ? r.entry[0] : r.entry))
-        .filter((e): e is { id: string; type: string; body_md: string; occurred_at: string; project_id: string } => Boolean(e) && e!.project_id === project.id)
+        .filter(
+          (e): e is {
+            id: string;
+            body_md: string;
+            occurred_at: string;
+            project_id: string;
+            entry_type: { key: string } | { key: string }[] | null;
+          } => Boolean(e) && e!.project_id === project.id,
+        )
+        .map((e) => {
+          const et = Array.isArray(e.entry_type) ? e.entry_type[0] : e.entry_type;
+          return { id: e.id, type: et?.key ?? "note", body_md: e.body_md, occurred_at: e.occurred_at };
+        })
         .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
         .slice(0, 12);
   }

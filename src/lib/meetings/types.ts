@@ -12,7 +12,8 @@ export type MeetingRow = {
 
 export type MeetingChildEntry = {
   id: string;
-  type: "note" | "action" | "decision" | "risk" | "gate" | "meeting" | "call";
+  /** Entry-type key (project-defined). */
+  type: string;
   body_md: string;
   occurred_at: string;
 };

@@ -7,17 +7,61 @@
  *   /done $1.2k for the comms cards #SWG-401
  *   plain note with #CV-203 and @sk
  *
- * The parser is deliberately small and synchronous so it can run on the server
- * action boundary AND inside the live composer for chip previews. It does not
- * validate authorisation or look anything up in the database — that happens
- * in the server action that consumes its output.
+ * Slash commands resolve via a `SlashMap` so projects can rename entry types
+ * (Prompt 2). Callers fetch the project's `entry_types` rows and build the
+ * map; if no map is provided we fall back to the seven system defaults so the
+ * parser still works in unit tests and pre-engine code paths.
+ *
+ * The parser stays small and synchronous — it runs on the server-action
+ * boundary AND inside the live composer for chip previews. It does not look
+ * anything up in the database; that happens in the server action that
+ * consumes its output.
  */
 
-export type EntryType = "note" | "action" | "decision" | "risk" | "call";
+/** Entry-type key — was a closed enum, now an open string keyed by project. */
+export type EntryTypeKey = string;
+
+/** A single slash → entry-type binding (with optional done shortcut). */
+export type SlashBinding = {
+  entryTypeKey: EntryTypeKey;
+  /** When true, the matched slash also flips the entry's status to "done". */
+  doneShortcut?: boolean;
+};
+
+export type SlashMap = Record<string, SlashBinding>;
+
+/** System defaults — match the seven seeded entry types. */
+export const SYSTEM_SLASH_MAP: SlashMap = {
+  note: { entryTypeKey: "note" },
+  todo: { entryTypeKey: "action" },
+  action: { entryTypeKey: "action" },
+  done: { entryTypeKey: "action", doneShortcut: true },
+  decision: { entryTypeKey: "decision" },
+  risk: { entryTypeKey: "risk" },
+  call: { entryTypeKey: "call" },
+};
+
+/** Build a SlashMap from an array of project entry_types rows. */
+export function buildSlashMap(
+  entryTypes: Array<{ key: string; slash_aliases: string[]; is_system_action?: boolean | null }>,
+  fallbackTypeKey: string = "note",
+): { map: SlashMap; fallbackTypeKey: string } {
+  const map: SlashMap = {};
+  for (const t of entryTypes) {
+    for (const alias of t.slash_aliases ?? []) {
+      const a = alias.toLowerCase();
+      if (!a) continue;
+      // The "done" alias on the system action type carries the doneShortcut.
+      const doneShortcut = a === "done" && Boolean(t.is_system_action);
+      map[a] = { entryTypeKey: t.key, doneShortcut };
+    }
+  }
+  return { map, fallbackTypeKey };
+}
 
 export type ParsedEntry = {
-  /** Final classified entry type. `note` is the fallback. */
-  type: EntryType;
+  /** Final classified entry-type key. Falls back to `fallbackTypeKey` (default "note"). */
+  type: EntryTypeKey;
   /** Body with the slash command stripped. Refs/mentions are kept inline. */
   body: string;
   /** Distinct refs gathered from the input. */
@@ -33,18 +77,8 @@ export type ParsedEntry = {
   probability?: number;
   /** Risk-specific 1–5 impact via `i:N`. */
   impact?: number;
-  /** Whether the input started with a `/done` slash, which marks an action complete. */
+  /** Whether the input started with a "done"-flavoured slash, marking an action complete. */
   doneShortcut: boolean;
-};
-
-const SLASH_COMMANDS: Record<string, EntryType | "todo" | "done"> = {
-  note: "note",
-  todo: "action",
-  action: "action",
-  done: "done",
-  decision: "decision",
-  risk: "risk",
-  call: "call",
 };
 
 const ITEM_RE = /(?<![A-Za-z0-9_])#([A-Za-z][\w-]{0,63})/g;
@@ -153,22 +187,35 @@ export function resolveMoney(intPart: string, fracPart: string | undefined, suff
   return Math.round((wholeNum + fracNum) * unitMultiplier * 100);
 }
 
-export function parseComposer(input: string, now: Date = new Date()): ParsedEntry {
+export type ParseOptions = {
+  /** Project-defined slash → entry-type bindings. Falls back to system defaults. */
+  slashMap?: SlashMap;
+  /** Entry-type key used when no slash matches. Default "note". */
+  fallbackTypeKey?: string;
+  /** "Now" for relative due-date resolution. */
+  now?: Date;
+};
+
+export function parseComposer(input: string, optsOrNow: ParseOptions | Date = {}): ParsedEntry {
+  // Backwards-compatible second-arg: callers used to pass `now: Date`.
+  const opts: ParseOptions =
+    optsOrNow instanceof Date ? { now: optsOrNow } : optsOrNow ?? {};
+  const slashMap = opts.slashMap ?? SYSTEM_SLASH_MAP;
+  const fallbackTypeKey = opts.fallbackTypeKey ?? "note";
+  const now = opts.now ?? new Date();
+
   let body = input ?? "";
-  let type: EntryType = "note";
+  let type: EntryTypeKey = fallbackTypeKey;
   let doneShortcut = false;
 
   // Strip leading slash command.
   const slashMatch = /^\s*\/([a-z]+)\b\s*/i.exec(body);
   if (slashMatch) {
     const cmd = slashMatch[1].toLowerCase();
-    const mapped = SLASH_COMMANDS[cmd];
-    if (mapped) {
-      if (mapped === "todo") type = "action";
-      else if (mapped === "done") {
-        type = "action";
-        doneShortcut = true;
-      } else type = mapped;
+    const binding = slashMap[cmd];
+    if (binding) {
+      type = binding.entryTypeKey;
+      doneShortcut = Boolean(binding.doneShortcut);
       body = body.slice(slashMatch[0].length);
     }
   }

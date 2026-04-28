@@ -3,7 +3,7 @@ import { renderBody } from "@/lib/composer/render-body";
 import { cn } from "@/lib/utils";
 import type { EntryRowData } from "@/lib/entries/types";
 
-const TYPE_TONE: Record<EntryRowData["type"], string> = {
+const TYPE_TONE: Record<string, string> = {
   note: "border-line bg-bg-2 text-ink-3",
   action: "border-tone-blue-bd bg-tone-blue-bg text-tone-blue-ink",
   decision: "border-tone-purple-bd bg-tone-purple-bg text-tone-purple-ink",
@@ -34,7 +34,7 @@ export function EntryRow({
           <span
             className={cn(
               "rounded-full border px-1.5 py-px font-mono text-[10px] font-semibold uppercase tracking-wider",
-              TYPE_TONE[entry.type],
+              TYPE_TONE[entry.type] ?? TYPE_TONE.note,
             )}
           >
             {entry.type}

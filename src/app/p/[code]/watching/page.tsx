@@ -34,7 +34,7 @@ export default async function WatchingPage({ params }: { params: Promise<{ code:
     id: string;
     ref_code: string;
     title: string;
-    kind: string;
+    type_key: string;
     updated_at: string;
     unread: number;
   }> = [];
@@ -42,12 +42,20 @@ export default async function WatchingPage({ params }: { params: Promise<{ code:
   if (itemIds.length > 0) {
     const { data: itemRows } = await supabase
       .from("items")
-      .select("id, ref_code, title, kind, updated_at")
+      .select("id, ref_code, title, updated_at, item_type:type_id ( key )")
       .eq("project_id", project.id)
       .in("id", itemIds);
 
+    type Row = {
+      id: string;
+      ref_code: string;
+      title: string;
+      updated_at: string;
+      item_type: { key: string } | { key: string }[] | null;
+    };
+
     items = await Promise.all(
-      (itemRows ?? []).map(async (it) => {
+      ((itemRows ?? []) as Row[]).map(async (it) => {
         const since = watchedSinceById[it.id];
         const { count } = await supabase
           .from("entry_refs")
@@ -58,7 +66,15 @@ export default async function WatchingPage({ params }: { params: Promise<{ code:
           .eq("ref_kind", "item")
           .eq("ref_id", it.id)
           .gt("entries.occurred_at", since ?? "1970-01-01");
-        return { ...it, unread: count ?? 0 };
+        const itype = Array.isArray(it.item_type) ? it.item_type[0] : it.item_type;
+        return {
+          id: it.id,
+          ref_code: it.ref_code,
+          title: it.title,
+          type_key: itype?.key ?? "other",
+          updated_at: it.updated_at,
+          unread: count ?? 0,
+        };
       }),
     );
   }
@@ -94,7 +110,7 @@ export default async function WatchingPage({ params }: { params: Promise<{ code:
                 #{it.ref_code}
               </Link>
               <span className="flex-1 truncate text-[12.5px] font-medium text-ink">{it.title}</span>
-              <span className="font-mono text-[10.5px] text-ink-4">{it.kind}</span>
+              <span className="font-mono text-[10.5px] text-ink-4">{it.type_key}</span>
               {it.unread > 0 && (
                 <span className="rounded-full border border-accent-bd bg-accent-bg px-2 py-0.5 font-mono text-[10.5px] text-accent">
                   {it.unread} new

@@ -47,15 +47,16 @@ Open `.env.local` and paste the three values above.
 In the Supabase dashboard, open **SQL Editor → New query**, paste the contents of:
 
 1. `supabase/migrations/0001_init.sql` — schema, RLS, indexes
-2. `supabase/migrations/0002_seed.sql` — sample "South Plant — Phase 2" data
+2. `supabase/migrations/0002_seed.sql` — sample "South Plant — Phase 2" data (legacy; superseded by 0005 once it has run)
 3. `supabase/migrations/0003_create_project_rpc.sql` — RPC for self-serve project creation
 4. `supabase/migrations/0004_storage.sql` — storage bucket + policies for the Library
+5. `supabase/migrations/0005_schema_engine.sql` — generic item/entry-type engine, multi-pipeline, props jsonb; collapses `risks`/`decisions`/`gate_moves`/`meetings` into `entries.props` and re-seeds SP-2 via the engine
 
-Run each in order.
+Run each in order. To **re-seed** SP-2 after 0005 has been applied, just re-run 0005 — it deletes and re-creates the project. Re-running 0002 after 0005 is a no-op because `items.kind` no longer exists.
 
 Then in the Supabase dashboard go to **Database → Replication** and make sure the
-`entries`, `actions`, and `gate_moves` tables are added to the realtime
-publication so the app's live updates work across tabs.
+`entries`, `actions`, and `items` tables are added to the realtime
+publication so the app's live updates work across tabs. (`gate_moves` and `risks` were retired in 0005 — gate moves now live as entries with the system gate type.)
 
 ### 5. Make yourself a member of the seed project
 

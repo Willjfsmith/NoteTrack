@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
+import { useRouter } from "next/navigation";
 import { EntryRow } from "./entry-row";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { EntryRowData } from "@/lib/entries/types";
@@ -17,10 +18,14 @@ export function Diary({
   initial: EntryRowData[];
   meetingId?: string;
 }) {
-  const [entries, setEntries] = useState<EntryRowData[]>(initial);
+  const [entries] = useState<EntryRowData[]>(initial);
   const supabase = createSupabaseBrowserClient();
+  const router = useRouter();
 
-  // Realtime — listen for any new entries on this project (Prompt 13's foothold).
+  // Realtime: refresh the route on insert so the diary picks up the entry's
+  // joined entry_type + props. We can't optimistically append from the
+  // postgres_changes payload alone because it only carries `entry_type_id`
+  // (no type key/colour) and `props` may need owner-person resolution.
   useEffect(() => {
     const ch = supabase
       .channel(`entries-${projectId}-${meetingId ?? "all"}`)
@@ -33,37 +38,16 @@ export function Diary({
           filter: `project_id=eq.${projectId}`,
         },
         (payload) => {
-          const row = payload.new as {
-            id: string;
-            type: EntryRowData["type"];
-            body_md: string;
-            occurred_at: string;
-            source_meeting_id: string | null;
-          };
+          const row = payload.new as { source_meeting_id: string | null };
           if (meetingId && row.source_meeting_id !== meetingId) return;
-          setEntries((prev) => {
-            if (prev.some((e) => e.id === row.id)) return prev;
-            return [
-              {
-                id: row.id,
-                type: row.type,
-                body_md: row.body_md,
-                occurred_at: row.occurred_at,
-                action: null,
-                risk: null,
-                decision: null,
-                gate: null,
-              },
-              ...prev,
-            ];
-          });
+          router.refresh();
         },
       )
       .subscribe();
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [supabase, projectId, meetingId]);
+  }, [supabase, projectId, meetingId, router]);
 
   if (entries.length === 0) {
     return (

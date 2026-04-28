@@ -39,11 +39,17 @@ export default async function ItemDetailPage({
 
   const { data: item } = await supabase
     .from("items")
-    .select("id, ref_code, title, kind, current_stage_id, updated_at, created_at")
+    .select(
+      `id, ref_code, title, current_stage_id, updated_at, created_at, props,
+       item_type:type_id ( key, name )`,
+    )
     .eq("project_id", project.id)
     .eq("ref_code", ref)
     .maybeSingle();
   if (!item) notFound();
+
+  type ItemTypeJoin = { key: string; name: string };
+  const itemType = Array.isArray(item.item_type) ? item.item_type[0] : (item.item_type as ItemTypeJoin | null);
 
   const [{ data: stage }, { data: refRows }, { data: attachments }] = await Promise.all([
     item.current_stage_id
@@ -56,8 +62,10 @@ export default async function ItemDetailPage({
     supabase
       .from("entry_refs")
       .select(
-        `entry:entry_id ( id, type, body_md, occurred_at, project_id ),
-         risks:entry_id!inner ( probability, impact, status )`,
+        `entry:entry_id (
+           id, body_md, occurred_at, project_id, props,
+           entry_type:entry_type_id ( key )
+         )`,
         { count: "exact" },
       )
       .eq("ref_kind", "item")
@@ -71,24 +79,37 @@ export default async function ItemDetailPage({
       .order("created_at", { ascending: false }),
   ]);
 
-  // entry_refs returns rows where entry might be null due to RLS.
-  type RefRow = {
-    entry:
-      | { id: string; type: string; body_md: string; occurred_at: string; project_id: string }
-      | { id: string; type: string; body_md: string; occurred_at: string; project_id: string }[]
-      | null;
-    risks:
-      | { probability: number; impact: number; status: string }
-      | { probability: number; impact: number; status: string }[]
-      | null;
+  type EntryJoin = {
+    id: string;
+    body_md: string;
+    occurred_at: string;
+    project_id: string;
+    props: Record<string, unknown> | null;
+    entry_type: { key: string } | { key: string }[] | null;
   };
-  const entries =
-    ((refRows ?? []) as RefRow[])
-      .map((r) => ({
-        entry: Array.isArray(r.entry) ? r.entry[0] : r.entry,
-        risk: Array.isArray(r.risks) ? r.risks[0] : r.risks,
-      }))
-      .filter(({ entry }) => entry?.project_id === project.id);
+  type RefRow = { entry: EntryJoin | EntryJoin[] | null };
+
+  const entries = ((refRows ?? []) as RefRow[])
+    .map((r) => {
+      const e = Array.isArray(r.entry) ? r.entry[0] : r.entry;
+      if (!e || e.project_id !== project.id) return null;
+      const et = Array.isArray(e.entry_type) ? e.entry_type[0] : e.entry_type;
+      const props = (e.props ?? {}) as Record<string, unknown>;
+      const typeKey = et?.key ?? "note";
+      const risk =
+        typeKey === "risk" && typeof props.probability === "number" && typeof props.impact === "number"
+          ? {
+              probability: props.probability as number,
+              impact: props.impact as number,
+              status: (props.status as string) ?? "open",
+            }
+          : null;
+      return {
+        entry: { id: e.id, type: typeKey, body_md: e.body_md, occurred_at: e.occurred_at },
+        risk,
+      };
+    })
+    .filter((r): r is { entry: { id: string; type: string; body_md: string; occurred_at: string }; risk: { probability: number; impact: number; status: string } | null } => r != null);
 
   const {
     data: { user },
@@ -110,7 +131,7 @@ export default async function ItemDetailPage({
     { key: "activity", label: `Activity (${entries.length})` },
     { key: "files", label: `Files (${attachments?.length ?? 0})` },
     { key: "linked", label: "Linked" },
-    { key: "risks", label: `Risks (${entries.filter((e) => e.entry?.type === "risk").length})` },
+    { key: "risks", label: `Risks (${entries.filter((e) => e.entry.type === "risk").length})` },
   ];
 
   return (
@@ -118,7 +139,7 @@ export default async function ItemDetailPage({
       <div className="mb-4 flex flex-wrap items-start gap-3 border-b border-line pb-4">
         <div className="min-w-0 flex-1">
           <div className="font-mono text-[11px] text-ink-3">
-            {item.kind} · #{item.ref_code}
+            {itemType?.name ?? itemType?.key ?? "item"} · #{item.ref_code}
           </div>
           <h1 className="mt-1 font-serif text-[28px] font-medium leading-tight tracking-tight">
             {item.title}
@@ -168,31 +189,29 @@ export default async function ItemDetailPage({
             </div>
           ) : (
             <ul>
-              {entries.map(({ entry, risk }) =>
-                entry ? (
-                  <li key={entry.id} className="flex gap-3 border-b border-line py-2.5">
-                    <span className="w-16 flex-none text-right font-mono text-[10.5px] text-ink-4">
-                      {format(parseISO(entry.occurred_at), "d MMM HH:mm")}
-                    </span>
-                    <span
-                      className={cn(
-                        "h-5 flex-none rounded-1 border px-1 font-mono text-[10px] uppercase tracking-wider",
-                        TYPE_TONE[entry.type] ?? TYPE_TONE.note,
-                      )}
-                    >
-                      {entry.type}
-                    </span>
-                    <span className="flex-1 text-[13px] leading-[1.5]">
-                      {renderBody(entry.body_md, { projectCode: project.code })}
-                      {risk && (
-                        <span className="ml-2 font-mono text-[10.5px] text-ink-4">
-                          (p{risk.probability}·i{risk.impact} · {risk.status})
-                        </span>
-                      )}
-                    </span>
-                  </li>
-                ) : null,
-              )}
+              {entries.map(({ entry, risk }) => (
+                <li key={entry.id} className="flex gap-3 border-b border-line py-2.5">
+                  <span className="w-16 flex-none text-right font-mono text-[10.5px] text-ink-4">
+                    {format(parseISO(entry.occurred_at), "d MMM HH:mm")}
+                  </span>
+                  <span
+                    className={cn(
+                      "h-5 flex-none rounded-1 border px-1 font-mono text-[10px] uppercase tracking-wider",
+                      TYPE_TONE[entry.type] ?? TYPE_TONE.note,
+                    )}
+                  >
+                    {entry.type}
+                  </span>
+                  <span className="flex-1 text-[13px] leading-[1.5]">
+                    {renderBody(entry.body_md, { projectCode: project.code })}
+                    {risk && (
+                      <span className="ml-2 font-mono text-[10.5px] text-ink-4">
+                        (p{risk.probability}·i{risk.impact} · {risk.status})
+                      </span>
+                    )}
+                  </span>
+                </li>
+              ))}
             </ul>
           )}
         </div>
@@ -235,9 +254,9 @@ export default async function ItemDetailPage({
       {tab === "risks" && (
         <ul>
           {entries
-            .filter((e) => e.entry?.type === "risk" && e.risk)
+            .filter((e) => e.entry.type === "risk" && e.risk)
             .map(({ entry, risk }) =>
-              entry && risk ? (
+              risk ? (
                 <li
                   key={entry.id}
                   className="flex items-center gap-3 border-b border-line py-2.5 text-[12.5px]"
@@ -255,7 +274,7 @@ export default async function ItemDetailPage({
                 </li>
               ) : null,
             )}
-          {entries.filter((e) => e.entry?.type === "risk").length === 0 && (
+          {entries.filter((e) => e.entry.type === "risk").length === 0 && (
             <div className="rounded-4 border border-dashed border-line p-8 text-center text-[12.5px] text-ink-3">
               No risks linked to this item.
             </div>

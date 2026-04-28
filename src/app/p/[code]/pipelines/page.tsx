@@ -37,7 +37,7 @@ export default async function PipelinesPage({ params }: { params: Promise<{ code
         </span>
       </div>
       <div className="min-h-0 flex-1">
-        <RefreshOnChange table="gate_moves" filter={`item_id=neq.00000000-0000-0000-0000-000000000000`} />
+        <RefreshOnChange table="entries" filter={`project_id=eq.${project.id}`} />
         <Board initial={board} projectCode={project.code} />
       </div>
     </div>

@@ -5,6 +5,7 @@ export type BoardCard = {
   id: string;
   ref_code: string;
   title: string;
+  /** Item-type key (resolved via the item_types join). */
   kind: string;
   current_stage_id: string | null;
   daysInStage: number;
@@ -33,7 +34,7 @@ export async function fetchBoard(projectId: string): Promise<BoardData> {
 
   const { data: pipeline } = await supabase
     .from("pipelines")
-    .select("id")
+    .select("id, applies_to_type_id")
     .eq("project_id", projectId)
     .order("is_default", { ascending: false })
     .limit(1)
@@ -50,40 +51,70 @@ export async function fetchBoard(projectId: string): Promise<BoardData> {
   if (!stages) return { pipelineId: pipeline.id, stages: [] };
 
   const stageIds = stages.map((s) => s.id);
-  const { data: items } = await supabase
+
+  // Items are scoped to the pipeline's attached type (if any). When the
+  // pipeline has no attached type, all items in the project participate —
+  // matches today's single-pipeline behaviour.
+  let itemsQ = supabase
     .from("items")
-    .select("id, ref_code, title, kind, current_stage_id, updated_at")
+    .select("id, ref_code, title, current_stage_id, updated_at, item_type:type_id ( key )")
     .eq("project_id", projectId)
     .in("current_stage_id", stageIds)
     .limit(stages.length * PER_COLUMN_LIMIT);
+  if (pipeline.applies_to_type_id) {
+    itemsQ = itemsQ.eq("type_id", pipeline.applies_to_type_id);
+  }
+  const { data: items } = await itemsQ;
 
-  // Last gate_move per item — for days-in-stage.
-  const { data: lastMoves } = await supabase
-    .from("gate_moves")
-    .select("item_id, entry:entry_id ( occurred_at )")
-    .in("item_id", (items ?? []).map((i) => i.id))
-    .order("item_id");
-
+  // Last gate move per item — recovered from entries with the gate type
+  // (props.item_id matches). The specialised `gate_moves` table is gone.
+  const itemIds = (items ?? []).map((i) => i.id);
   const lastMoveByItem: Record<string, string> = {};
-  for (const row of (lastMoves ?? []) as Array<{
-    item_id: string;
-    entry: { occurred_at: string } | { occurred_at: string }[] | null;
-  }>) {
-    const ts = Array.isArray(row.entry) ? row.entry[0]?.occurred_at : row.entry?.occurred_at;
-    if (!ts) continue;
-    if (!lastMoveByItem[row.item_id] || lastMoveByItem[row.item_id] < ts) {
-      lastMoveByItem[row.item_id] = ts;
+  if (itemIds.length > 0) {
+    const { data: gateType } = await supabase
+      .from("entry_types")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("is_system_gate", true)
+      .maybeSingle();
+    if (gateType) {
+      const { data: gates } = await supabase
+        .from("entries")
+        .select("occurred_at, props")
+        .eq("project_id", projectId)
+        .eq("entry_type_id", gateType.id)
+        .order("occurred_at", { ascending: false })
+        .limit(itemIds.length * 6);
+      type GateRow = { occurred_at: string; props: Record<string, unknown> | null };
+      for (const g of (gates ?? []) as GateRow[]) {
+        const itemId = (g.props as Record<string, unknown> | null)?.item_id;
+        if (typeof itemId !== "string") continue;
+        if (!itemIds.includes(itemId)) continue;
+        if (!lastMoveByItem[itemId] || lastMoveByItem[itemId] < g.occurred_at) {
+          lastMoveByItem[itemId] = g.occurred_at;
+        }
+      }
     }
   }
 
-  const cards: BoardCard[] = (items ?? []).map((it) => {
+  type ItemRow = {
+    id: string;
+    ref_code: string;
+    title: string;
+    current_stage_id: string | null;
+    updated_at: string;
+    item_type: { key: string } | { key: string }[] | null;
+  };
+
+  const cards: BoardCard[] = ((items ?? []) as ItemRow[]).map((it) => {
     const since = lastMoveByItem[it.id] ?? it.updated_at;
     const days = differenceInDays(new Date(), new Date(since));
+    const itype = Array.isArray(it.item_type) ? it.item_type[0] : it.item_type;
     return {
       id: it.id,
       ref_code: it.ref_code,
       title: it.title,
-      kind: it.kind,
+      kind: itype?.key ?? "other",
       current_stage_id: it.current_stage_id,
       daysInStage: Math.max(0, days),
       owner: null,

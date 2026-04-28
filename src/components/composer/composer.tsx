@@ -4,23 +4,27 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Kbd } from "@/components/ui/kbd";
-import { parseComposer, type EntryType } from "@/lib/composer/parse";
+import { parseComposer } from "@/lib/composer/parse";
 import { createEntry } from "@/lib/composer/create-entry";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-const TYPE_LABEL: Record<EntryType, string> = {
+const TYPE_LABEL: Record<string, string> = {
   note: "note",
   action: "action",
   decision: "decision",
   risk: "risk",
+  gate: "gate",
+  meeting: "meeting",
   call: "call",
 };
 
-const TYPE_TONE: Record<EntryType, string> = {
+const TYPE_TONE: Record<string, string> = {
   note: "border-line text-ink-3 bg-bg-2",
   action: "border-tone-blue-bd bg-tone-blue-bg text-tone-blue-ink",
   decision: "border-tone-purple-bd bg-tone-purple-bg text-tone-purple-ink",
   risk: "border-tone-red-bd bg-tone-red-bg text-tone-red-ink",
+  gate: "border-tone-green-bd bg-tone-green-bg text-tone-green-ink",
+  meeting: "border-tone-yellow-bd bg-tone-yellow-bg text-tone-yellow-ink",
   call: "border-tone-orange-bd bg-tone-orange-bg text-tone-orange-ink",
 };
 
@@ -63,7 +67,7 @@ export function Composer({
       const q = token.slice(1);
       const { data } = await supabase
         .from("items")
-        .select("id, ref_code, title, kind")
+        .select("id, ref_code, title")
         .eq("project_id", projectId)
         .or(`ref_code.ilike.${q}%,title.ilike.%${q}%`)
         .limit(8);
@@ -186,10 +190,10 @@ export function Composer({
           <span
             className={cn(
               "rounded-full border px-2 py-0.5 text-[11px] font-medium",
-              TYPE_TONE[parsed.type],
+              TYPE_TONE[parsed.type] ?? TYPE_TONE.note,
             )}
           >
-            {TYPE_LABEL[parsed.type]}
+            {TYPE_LABEL[parsed.type] ?? parsed.type}
           </span>
           {parsed.due && (
             <span className="rounded-full border border-line bg-bg-2 px-2 py-0.5 font-mono text-[10.5px] text-ink-3">

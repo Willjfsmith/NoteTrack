@@ -76,7 +76,7 @@ export function CommandPalette({
       const [items, people, entries] = await Promise.all([
         supabase
           .from("items")
-          .select("id, ref_code, title, kind")
+          .select("id, ref_code, title, item_type:type_id ( key )")
           .eq("project_id", projectId)
           .or(`ref_code.ilike.%${term}%,title.ilike.%${term}%`)
           .limit(8),
@@ -88,7 +88,7 @@ export function CommandPalette({
           .limit(6),
         supabase
           .from("entries")
-          .select("id, type, body_md, occurred_at")
+          .select("id, body_md, occurred_at, entry_type:entry_type_id ( key )")
           .eq("project_id", projectId)
           .ilike("body_md", `%${term}%`)
           .order("occurred_at", { ascending: false })
@@ -98,12 +98,19 @@ export function CommandPalette({
       if (cancelled) return;
 
       const out: Result[] = [];
-      for (const it of items.data ?? []) {
+      type ItemRow = {
+        id: string;
+        ref_code: string;
+        title: string;
+        item_type: { key: string } | { key: string }[] | null;
+      };
+      for (const it of (items.data ?? []) as ItemRow[]) {
+        const itype = Array.isArray(it.item_type) ? it.item_type[0] : it.item_type;
         out.push({
           kind: "item",
           id: it.id,
           label: `#${it.ref_code} — ${it.title}`,
-          sub: it.kind,
+          sub: itype?.key ?? "item",
           href: `/p/${projectCode}/items/${it.ref_code}`,
         });
       }
@@ -116,12 +123,19 @@ export function CommandPalette({
           href: `/p/${projectCode}/people?p=${encodeURIComponent(p.short_id)}`,
         });
       }
-      for (const e of entries.data ?? []) {
+      type EntryRow = {
+        id: string;
+        body_md: string;
+        occurred_at: string;
+        entry_type: { key: string } | { key: string }[] | null;
+      };
+      for (const e of (entries.data ?? []) as EntryRow[]) {
+        const et = Array.isArray(e.entry_type) ? e.entry_type[0] : e.entry_type;
         out.push({
           kind: "entry",
           id: e.id,
           label: e.body_md.slice(0, 80),
-          sub: `${e.type} · ${new Date(e.occurred_at).toLocaleString()}`,
+          sub: `${et?.key ?? "note"} · ${new Date(e.occurred_at).toLocaleString()}`,
           href: `/p/${projectCode}/today`,
         });
       }

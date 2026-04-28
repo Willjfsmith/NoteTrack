@@ -1,35 +1,63 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { RiskRow } from "./types";
 
-type RawRisk = {
-  entry_id: string;
-  probability: number;
-  impact: number;
-  status: RiskRow["status"];
-  owner: RiskRow["owner"] | RiskRow["owner"][] | null;
-  entry: { body_md: string; occurred_at: string; project_id: string } | { body_md: string; occurred_at: string; project_id: string }[] | null;
-};
-
+/**
+ * Fetch risks for a project. Risks live as entries with entry_type.key === "risk"
+ * and props.{probability,impact,status,owner_person_id}; the specialised
+ * `risks` table was retired in 0005_schema_engine.sql.
+ */
 export async function fetchRisks(projectId: string): Promise<RiskRow[]> {
   const supabase = await createSupabaseServerClient();
+
+  // 1. Find the project's risk entry-type id.
+  const { data: riskType } = await supabase
+    .from("entry_types")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("key", "risk")
+    .maybeSingle();
+  if (!riskType) return [];
+
+  // 2. Pull the entries with that type for this project.
   const { data, error } = await supabase
-    .from("risks")
-    .select(
-      `
-      entry_id, probability, impact, status,
-      owner:owner_person_id ( id, short_id, name, initials, color ),
-      entry:entry_id!inner ( body_md, occurred_at, project_id )
-    `,
-    )
-    .eq("entry.project_id", projectId)
-    .order("probability", { ascending: false })
+    .from("entries")
+    .select("id, body_md, occurred_at, props")
+    .eq("project_id", projectId)
+    .eq("entry_type_id", riskType.id)
+    .order("occurred_at", { ascending: false })
     .limit(500);
-
   if (error || !data) return [];
-  const rows = data as unknown as RawRisk[];
 
-  // Resolve first linked item ref per entry, like in actions.
-  const entryIds = rows.map((r) => r.entry_id);
+  type Row = { id: string; body_md: string; occurred_at: string; props: Record<string, unknown> | null };
+  const rows = data as Row[];
+
+  // 3. Resolve owner people by person_id collected from props.
+  const ownerIds = Array.from(
+    new Set(
+      rows
+        .map((r) => (r.props as Record<string, unknown> | null)?.owner_person_id)
+        .filter((v): v is string => typeof v === "string"),
+    ),
+  );
+  const peopleById: Record<string, RiskRow["owner"]> = {};
+  if (ownerIds.length > 0) {
+    const { data: peopleRows } = await supabase
+      .from("people")
+      .select("id, short_id, name, initials, color")
+      .in("id", ownerIds);
+    for (const p of peopleRows ?? []) {
+      peopleById[p.id] = {
+        id: p.id,
+        short_id: p.short_id,
+        name: p.name,
+        initials: p.initials,
+        color: p.color,
+      };
+    }
+  }
+
+  // 4. Resolve first linked item ref per entry.
+  const entryIds = rows.map((r) => r.id);
   const refsByEntry: Record<string, string> = {};
   if (entryIds.length > 0) {
     const { data: refs } = await supabase
@@ -47,18 +75,25 @@ export async function fetchRisks(projectId: string): Promise<RiskRow[]> {
     }
   }
 
-  return rows.map((r) => {
-    const entry = Array.isArray(r.entry) ? r.entry[0] : r.entry;
-    const owner = Array.isArray(r.owner) ? r.owner[0] : r.owner;
-    return {
-      entry_id: r.entry_id,
-      body_md: entry?.body_md ?? "",
-      occurred_at: entry?.occurred_at ?? "",
-      probability: r.probability,
-      impact: r.impact,
-      status: r.status,
-      owner: owner ?? null,
-      source_item_ref: refsByEntry[r.entry_id] ?? null,
-    };
-  });
+  return rows
+    .map((r): RiskRow | null => {
+      const props = r.props ?? {};
+      const probability = typeof props.probability === "number" ? (props.probability as number) : null;
+      const impact = typeof props.impact === "number" ? (props.impact as number) : null;
+      const status = (props.status as RiskRow["status"]) ?? "open";
+      if (probability == null || impact == null) return null;
+      const ownerId = typeof props.owner_person_id === "string" ? (props.owner_person_id as string) : null;
+      return {
+        entry_id: r.id,
+        body_md: r.body_md,
+        occurred_at: r.occurred_at,
+        probability,
+        impact,
+        status,
+        owner: ownerId ? peopleById[ownerId] ?? null : null,
+        source_item_ref: refsByEntry[r.id] ?? null,
+      };
+    })
+    .filter((r): r is RiskRow => r != null)
+    .sort((a, b) => b.probability * b.impact - a.probability * a.impact);
 }

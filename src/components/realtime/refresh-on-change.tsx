@@ -14,7 +14,7 @@ export function RefreshOnChange({
   table,
   filter,
 }: {
-  table: "entries" | "actions" | "gate_moves" | "risks" | "items";
+  table: "entries" | "actions" | "items";
   /** Postgres filter string, e.g. `project_id=eq.<uuid>`. */
   filter: string;
 }) {

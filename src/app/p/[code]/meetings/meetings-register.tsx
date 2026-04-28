@@ -227,10 +227,28 @@ function MeetingDetail({
     async function load() {
       const { data } = await supabase
         .from("entries")
-        .select("id, type, body_md, occurred_at")
+        .select("id, body_md, occurred_at, entry_type:entry_type_id ( key )")
         .eq("source_meeting_id", row.entry_id)
         .order("occurred_at", { ascending: true });
-      if (!cancelled) setChildren((data ?? []) as MeetingChildEntry[]);
+      type Row = {
+        id: string;
+        body_md: string;
+        occurred_at: string;
+        entry_type: { key: string } | { key: string }[] | null;
+      };
+      if (!cancelled) {
+        setChildren(
+          ((data ?? []) as Row[]).map((r) => {
+            const et = Array.isArray(r.entry_type) ? r.entry_type[0] : r.entry_type;
+            return {
+              id: r.id,
+              type: et?.key ?? "note",
+              body_md: r.body_md,
+              occurred_at: r.occurred_at,
+            };
+          }),
+        );
+      }
     }
     load();
 
@@ -245,8 +263,31 @@ function MeetingDetail({
           filter: `source_meeting_id=eq.${row.entry_id}`,
         },
         (payload) => {
-          const e = payload.new as MeetingChildEntry;
-          setChildren((prev) => (prev.some((p) => p.id === e.id) ? prev : [...prev, e]));
+          // Realtime payload doesn't include the entry_types join — refetch
+          // the row to get its type key. Cheap because it's a single row.
+          const e = payload.new as { id: string };
+          (async () => {
+            const { data } = await supabase
+              .from("entries")
+              .select("id, body_md, occurred_at, entry_type:entry_type_id ( key )")
+              .eq("id", e.id)
+              .maybeSingle();
+            if (!data) return;
+            const raw = (data as unknown as {
+              id: string;
+              body_md: string;
+              occurred_at: string;
+              entry_type: { key: string } | { key: string }[] | null;
+            });
+            const et = Array.isArray(raw.entry_type) ? raw.entry_type[0] ?? null : raw.entry_type;
+            const child: MeetingChildEntry = {
+              id: raw.id,
+              type: et?.key ?? "note",
+              body_md: raw.body_md,
+              occurred_at: raw.occurred_at,
+            };
+            setChildren((prev) => (prev.some((p) => p.id === child.id) ? prev : [...prev, child]));
+          })();
         },
       )
       .subscribe();

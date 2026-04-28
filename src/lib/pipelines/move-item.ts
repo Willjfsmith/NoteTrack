@@ -10,12 +10,10 @@ const Schema = z.object({
 });
 
 /**
- * Move an item to a new stage. Creates a `gate` entry that records the move
- * (so the Today diary picks it up), then a corresponding `gate_moves` row.
- *
- * The two writes are made sequentially. RLS ensures the caller is an editor on
- * the item's project; we don't enforce stage order here (the caller — kanban
- * UI — drives that), so callers may want to validate before invoking.
+ * Move an item to a new stage. Logs the move as a gate-typed entry whose
+ * props record `{item_id, from_stage_id, to_stage_id}`; the specialised
+ * `gate_moves` table was retired in 0005_schema_engine.sql. The accompanying
+ * entry_ref keeps `#ref` clicks routing to the item.
  */
 export async function moveItem(input: { itemId: string; toStageId: string }) {
   const v = Schema.safeParse(input);
@@ -56,7 +54,18 @@ export async function moveItem(input: { itemId: string; toStageId: string }) {
     fromStageName = fromStage?.name ?? null;
   }
 
-  // 1. Create the `gate` entry.
+  // Locate the project's gate entry-type via the system flag.
+  const { data: gateType } = await supabase
+    .from("entry_types")
+    .select("id")
+    .eq("project_id", item.project_id)
+    .eq("is_system_gate", true)
+    .maybeSingle();
+  if (!gateType) {
+    return { ok: false as const, error: "Project has no gate entry type configured." };
+  }
+
+  // 1. Create the gate-typed entry with the move recorded in props.
   const body = `Moved #${item.ref_code} → ${toStage.name}` +
     (fromStageName ? ` (from ${fromStageName})` : "");
   const { data: entry, error: entryErr } = await supabase
@@ -64,29 +73,25 @@ export async function moveItem(input: { itemId: string; toStageId: string }) {
     .insert({
       project_id: item.project_id,
       author_id: user.id,
-      type: "gate",
+      entry_type_id: gateType.id,
       body_md: body,
+      props: {
+        item_id: item.id,
+        from_stage_id: item.current_stage_id,
+        to_stage_id: v.data.toStageId,
+      },
     })
     .select("id")
     .single();
   if (entryErr || !entry) return { ok: false as const, error: entryErr?.message ?? "Failed to log gate." };
 
-  // 2. Insert the gate_moves row.
-  const { error: gmErr } = await supabase.from("gate_moves").insert({
-    entry_id: entry.id,
-    item_id: item.id,
-    from_stage_id: item.current_stage_id,
-    to_stage_id: v.data.toStageId,
-  });
-  if (gmErr) return { ok: false as const, error: gmErr.message };
-
-  // 3. Add an entry_ref so #ref-clicks from the diary route to the item.
+  // 2. Add an entry_ref so #ref-clicks from the diary route to the item.
   await supabase.from("entry_refs").upsert(
     { entry_id: entry.id, ref_kind: "item" as const, ref_id: item.id },
     { onConflict: "entry_id,ref_kind,ref_id", ignoreDuplicates: true },
   );
 
-  // 4. Update the item's current stage.
+  // 3. Update the item's current stage.
   const { error: itemErr } = await supabase
     .from("items")
     .update({ current_stage_id: v.data.toStageId })

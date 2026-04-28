@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { parseComposer } from "./parse";
+import { parseComposer, buildSlashMap } from "./parse";
 import { CreateEntryInput, type CreatedEntry } from "./types";
 
 export type CreateEntryResult =
@@ -12,14 +12,13 @@ export type CreateEntryResult =
 /**
  * Create an entry from a raw composer line.
  *
- * Steps (kept short on purpose — Postgres FKs + RLS do most of the work):
- *  1. Validate the input (zod).
- *  2. Verify the caller is an editor on the project.
- *  3. Parse the line.
- *  4. Insert the `entries` row.
- *  5. Insert the type-specific row (actions / decisions / risks / call uses note/decision shape).
- *  6. Resolve refs: stub missing items, look up people by short_id, write entry_refs.
- *  7. Touch revalidatePath for the today/diary view.
+ * Goes through the schema engine: looks up the project's entry_types, parses
+ * the line with the project-specific slash map, writes `entries.entry_type_id
+ * + props`, and uses the system flags on `entry_types` to decide whether to
+ * additionally insert into the thin `actions` table.
+ *
+ * Risks/decisions/calls/notes don't get specialised tables anymore — their
+ * shape lives in `entries.props`.
  */
 export async function createEntry(input: CreateEntryInput): Promise<CreateEntryResult> {
   const parseResult = CreateEntryInput.safeParse(input);
@@ -45,7 +44,45 @@ export async function createEntry(input: CreateEntryInput): Promise<CreateEntryR
     return { ok: false, error: "Not authorised to write to this project." };
   }
 
-  const parsed = parseComposer(raw);
+  // Load entry_types for this project so the parser can resolve slash aliases
+  // and we can map type-key → entry_type_id.
+  const { data: entryTypeRows } = await supabase
+    .from("entry_types")
+    .select("id, key, slash_aliases, is_system_action")
+    .eq("project_id", projectId);
+
+  if (!entryTypeRows || entryTypeRows.length === 0) {
+    return { ok: false, error: "Project has no entry types configured." };
+  }
+
+  const { map: slashMap } = buildSlashMap(entryTypeRows);
+  const entryTypeByKey = new Map<string, { id: string; is_system_action: boolean | null }>();
+  for (const t of entryTypeRows) {
+    entryTypeByKey.set(t.key, { id: t.id, is_system_action: t.is_system_action });
+  }
+
+  const parsed = parseComposer(raw, { slashMap });
+
+  // Resolve the entry_type_id. If the parser fell back to "note" but the
+  // project doesn't have a "note" type, use the first available type.
+  const resolvedType = entryTypeByKey.get(parsed.type) ?? entryTypeByKey.get("note") ?? {
+    id: entryTypeRows[0].id,
+    is_system_action: entryTypeRows[0].is_system_action,
+  };
+
+  // Build props for the type-specific data the parser extracted. The schema
+  // editor (Prompt 5) will eventually own this layout; for now we use the
+  // system-default field keys.
+  const props: Record<string, unknown> = {};
+  if (parsed.type === "risk") {
+    if (parsed.probability !== undefined) props.probability = parsed.probability;
+    if (parsed.impact !== undefined) props.impact = parsed.impact;
+    props.status = "open";
+  }
+  if (parsed.type === "decision") {
+    props.status = "proposed";
+  }
+  if (parsed.money !== undefined) props.money = parsed.money;
 
   // 1. Insert the entry row.
   const { data: entry, error: entryErr } = await supabase
@@ -53,11 +90,12 @@ export async function createEntry(input: CreateEntryInput): Promise<CreateEntryR
     .insert({
       project_id: projectId,
       author_id: user.id,
-      type: parsed.type,
+      entry_type_id: resolvedType.id,
       body_md: parsed.body,
       source_meeting_id: meetingId ?? null,
+      props,
     })
-    .select("id, type, body_md, occurred_at, project_id, author_id, source_meeting_id")
+    .select("id, entry_type_id, body_md, occurred_at, project_id, author_id, source_meeting_id, props")
     .single();
 
   if (entryErr || !entry) {
@@ -65,7 +103,7 @@ export async function createEntry(input: CreateEntryInput): Promise<CreateEntryR
   }
 
   // 2. Resolve people by short_id (lowercased, project-scoped).
-  let personIdsByShort: Record<string, string> = {};
+  const personIdsByShort: Record<string, string> = {};
   if (parsed.refs.people.length > 0) {
     const { data: peopleRows } = await supabase
       .from("people")
@@ -75,8 +113,9 @@ export async function createEntry(input: CreateEntryInput): Promise<CreateEntryR
     for (const p of peopleRows ?? []) personIdsByShort[p.short_id] = p.id;
   }
 
-  // 3. Resolve / stub items by ref_code (project-scoped).
-  let itemIdsByRef: Record<string, string> = {};
+  // 3. Resolve / stub items by ref_code (project-scoped). Stubs use the
+  // project's first item type so they always have a valid type_id.
+  const itemIdsByRef: Record<string, string> = {};
   if (parsed.refs.items.length > 0) {
     const { data: itemRows } = await supabase
       .from("items")
@@ -85,26 +124,37 @@ export async function createEntry(input: CreateEntryInput): Promise<CreateEntryR
       .in("ref_code", parsed.refs.items);
     for (const it of itemRows ?? []) itemIdsByRef[it.ref_code] = it.id;
 
-    // Stub any missing items so refs always resolve.
     const missing = parsed.refs.items.filter((r) => !(r in itemIdsByRef));
     if (missing.length > 0) {
-      const { data: stubs } = await supabase
-        .from("items")
-        .insert(
-          missing.map((ref_code) => ({
-            project_id: projectId,
-            ref_code,
-            title: ref_code,
-            kind: "other" as const,
-          })),
-        )
-        .select("id, ref_code");
-      for (const s of stubs ?? []) itemIdsByRef[s.ref_code] = s.id;
+      // Pick a default type for stubs — prefer "other" if it exists, else
+      // the first sorted type.
+      const { data: typeRows } = await supabase
+        .from("item_types")
+        .select("id, key, sort_order")
+        .eq("project_id", projectId)
+        .order("sort_order");
+      const defaultType =
+        typeRows?.find((t) => t.key === "other") ?? typeRows?.[0] ?? null;
+
+      if (defaultType) {
+        const { data: stubs } = await supabase
+          .from("items")
+          .insert(
+            missing.map((ref_code) => ({
+              project_id: projectId,
+              ref_code,
+              title: ref_code,
+              type_id: defaultType.id,
+            })),
+          )
+          .select("id, ref_code");
+        for (const s of stubs ?? []) itemIdsByRef[s.ref_code] = s.id;
+      }
     }
   }
 
-  // 4. Insert the specialised row.
-  if (parsed.type === "action") {
+  // 4. If the entry's type is the system "action", insert the thin row.
+  if (resolvedType.is_system_action) {
     const ownerId = pickOwner(parsed.refs.people, personIdsByShort);
     await supabase.from("actions").insert({
       entry_id: entry.id,
@@ -114,23 +164,16 @@ export async function createEntry(input: CreateEntryInput): Promise<CreateEntryR
       status: parsed.doneShortcut ? "done" : "open",
       done_at: parsed.doneShortcut ? new Date().toISOString() : null,
     });
-  } else if (parsed.type === "decision") {
-    await supabase.from("decisions").insert({
-      entry_id: entry.id,
-      impact_text: null,
-      status: "proposed",
-    });
-  } else if (parsed.type === "risk") {
-    const ownerId = pickOwner(parsed.refs.people, personIdsByShort);
-    await supabase.from("risks").insert({
-      entry_id: entry.id,
-      probability: parsed.probability ?? 3,
-      impact: parsed.impact ?? 3,
-      owner_person_id: ownerId,
-      status: "open",
-    });
   }
-  // `note` and `call` only need the entries row.
+
+  // For risks: stash owner_person_id in props (no specialised table anymore).
+  if (parsed.type === "risk") {
+    const ownerId = pickOwner(parsed.refs.people, personIdsByShort);
+    if (ownerId) {
+      const nextProps = { ...(entry.props as Record<string, unknown>), owner_person_id: ownerId };
+      await supabase.from("entries").update({ props: nextProps }).eq("id", entry.id);
+    }
+  }
 
   // 5. Insert entry_refs (item + person).
   const refRows = [
@@ -161,7 +204,18 @@ export async function createEntry(input: CreateEntryInput): Promise<CreateEntryR
     revalidatePath(`/p/${code}/meetings`);
   }
 
-  return { ok: true, entry: entry as CreatedEntry };
+  return {
+    ok: true,
+    entry: {
+      id: entry.id,
+      type: parsed.type,
+      body_md: entry.body_md,
+      occurred_at: entry.occurred_at,
+      project_id: entry.project_id,
+      author_id: entry.author_id,
+      source_meeting_id: entry.source_meeting_id,
+    },
+  };
 }
 
 function pickOwner(
