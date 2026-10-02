@@ -38,7 +38,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     if (!table) return new NextResponse("Not found", { status: 404 });
     const view = table.views.find((v) => v.id === sp.get("view"));
     const { rows, lookup } = await fetchRowsWithLookup(table.id, table.properties);
-    const visible = view ? applyView(rows, view.config, table.properties, lookup) : rows;
+    const visible = view ? applyView(rows, view.config, table.properties, lookup, ctx.me?.id ?? null) : rows;
     md = tableToMarkdown({ tableName: view ? `${table.name} · ${view.name}` : table.name, rows: visible, defs: table.properties, lookup });
     name = `${table.slug}${view ? `-${view.name.toLowerCase().replace(/\s+/g, "-")}` : ""}`;
   } else {

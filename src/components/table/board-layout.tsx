@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { setRowProp } from "@/lib/rows/mutations";
 import { formatProp } from "@/lib/props";
+import { Avatar } from "@/components/ui/avatar";
 import type { PropertyDef, RowData, RowLookup, TableDef } from "@/lib/types";
 
 /** Kanban over any select property. A drop writes the property and logs a `gate` entry. */
@@ -18,6 +19,7 @@ export function BoardLayout({
   lookup,
   canEdit,
   onLocalPatch,
+  hideKeys = [],
 }: {
   slug: string;
   table: TableDef;
@@ -26,10 +28,15 @@ export function BoardLayout({
   lookup: RowLookup;
   canEdit: boolean;
   onLocalPatch: (rowId: string, patch: Partial<RowData>) => void;
+  /** properties not worth showing on cards (e.g. fixed by a filter) */
+  hideKeys?: string[];
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const [, start] = useTransition();
-  const cardDefs = table.properties.filter((d) => d.show_in_list && d.key !== groupDef?.key).slice(0, 3);
+  const cardDefs = table.properties
+    .filter((d) => d.show_in_list && d.key !== groupDef?.key && !hideKeys.includes(d.key) && d.type !== "person")
+    .slice(0, 3);
+  const personDefs = table.properties.filter((d) => d.type === "person" && d.key !== groupDef?.key && !hideKeys.includes(d.key));
 
   if (!groupDef) {
     return <div className="rounded-3 border border-dashed border-line px-4 py-8 text-center text-[12.5px] text-ink-3">Add a select property to this table to use the board.</div>;
@@ -54,7 +61,7 @@ export function BoardLayout({
         {groups.map((g) => (
           <Column key={g.key || "__none__"} id={g.key || "__none__"} label={g.label} count={g.rows.length} droppable={canEdit}>
             {g.rows.map((r) => (
-              <Card key={r.id} row={r} group={g.key || "__none__"} slug={slug} defs={cardDefs} lookup={lookup} draggable={canEdit} />
+              <Card key={r.id} row={r} group={g.key || "__none__"} slug={slug} defs={cardDefs} personDefs={personDefs} lookup={lookup} draggable={canEdit} />
             ))}
           </Column>
         ))}
@@ -76,7 +83,7 @@ function Column({ id, label, count, droppable, children }: { id: string; label: 
   );
 }
 
-function Card({ row, group, slug, defs, lookup, draggable }: { row: RowData; group: string; slug: string; defs: PropertyDef[]; lookup: RowLookup; draggable: boolean }) {
+function Card({ row, group, slug, defs, personDefs, lookup, draggable }: { row: RowData; group: string; slug: string; defs: PropertyDef[]; personDefs: PropertyDef[]; lookup: RowLookup; draggable: boolean }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: row.id, data: { group }, disabled: !draggable });
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
   return (
@@ -90,6 +97,13 @@ function Card({ row, group, slug, defs, lookup, draggable }: { row: RowData; gro
           const v = formatProp(d, row.props[d.key] ?? null, lookup);
           return v ? <span key={d.key} className="truncate">{d.name}: <span className="text-ink-2">{v}</span></span> : null;
         })}
+        <span className="ml-auto flex items-center gap-0.5">
+          {personDefs.map((d) => {
+            const v = row.props[d.key];
+            const p = typeof v === "string" ? lookup[v] : undefined;
+            return p ? <Avatar key={d.key} name={p.title} size="sm" /> : null;
+          })}
+        </span>
       </div>
     </div>
   );

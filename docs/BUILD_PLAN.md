@@ -16,9 +16,9 @@ v0.1 made the project the container and built a bespoke page per concept (action
 | --- | --- |
 | Schema | workspaces · memberships · tables · properties · rows (JSONB props) · entries · entry_revisions · entry_refs · attachments · views. RLS on everything. Ref-code trigger. Realtime on entries and rows. |
 | RPCs | `create_workspace` seeds 8 tables + properties + views + your People row (+ optional sample). `add_member_by_email`. `search_workspace` (tsvector + trigram). |
-| Diary | textarea composer (Scribble-friendly), `#`/`@` autocomplete, Enter to log; edit with kept revisions; strike out; project + date filters; realtime refresh; Markdown export. |
-| Entries → rows | `/todo` `/done` → Actions, `/decision` → Decisions, `/risk` → Risks, each linked back by `source_entry_id`; status / due / score chips in the diary. |
-| Tables | list layout with inline cell editing; board layout grouped by any select property with drag (logs a `gate` entry); filter builder; sort; free-text filter; saved views in the sidebar; new row; Markdown export. |
+| Diary | textarea composer (Scribble-friendly), `#`/`@` autocomplete, Enter to log; edit with kept revisions; strike out; project filter, date presets and range; "show older" paging; realtime refresh; Markdown export. |
+| Entries → rows | `/todo` `/done` → Actions, `/decision` → Decisions, `/risk` → Risks, each linked back by `source_entry_id`; status / due / score chips in the diary. A line that names an existing row in the matching table updates it (`/done #ACT-3`, `status:`, `due:`, `p:` `i:`). `/meeting` creates a Meetings row and opens it. `at:` backdates. |
+| Tables | list layout with inline cell editing and human dates (overdue red, today amber); board layout grouped by any select property with drag (logs a `gate` entry), owners as initials, filtered-out properties hidden; filter builder with `@me`; sort; free-text filter; saved views, pinnable to the sidebar ("On me" seeded); new row; Markdown export. |
 | Row page | editable title/ref; properties panel; composer bound to the row; timeline; backlinks from every table whose person/relation property points here; archive; export. Meetings rows get a notes pad with an outputs summary. |
 | Ink | write-once Pencil canvas (perfect-freehand): pressure, pen-only by default, undo/redo, whole-stroke eraser; saved as PNG + strokes JSON; shown inline in the diary. Files attach the same way. |
 | Search | page + ⌘K palette, both on the same RPC. |

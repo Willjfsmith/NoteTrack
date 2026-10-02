@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Paperclip, PenLine } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -31,7 +32,7 @@ export type ComposerContext = {
  */
 export function Composer({
   ctx,
-  placeholder = "Log something… /todo /done /decision /risk /call, #ref, @person, due:fri",
+  placeholder = "Log something… /todo /done /decision /risk /meeting, #ref, @person, due:fri, at:yesterday@14:00",
   autoFocus = false,
   compact = false,
   onCreated,
@@ -53,6 +54,7 @@ export function Composer({
   const fileRef = useRef<HTMLInputElement | null>(null);
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const parsed = useMemo(() => parseComposer(value), [value]);
+  const router = useRouter();
 
   useEffect(() => {
     if (autoFocus) taRef.current?.focus();
@@ -127,12 +129,15 @@ export function Composer({
     const raw = value.trim();
     if (!raw || pending) return;
     startTransition(async () => {
+      // `at:` is resolved here, on the user's clock, not on the server's.
+      const occurredAt = parseComposer(raw).at;
       const res = await createEntry({
         workspaceId: ctx.workspaceId,
         raw,
         meetingRowId: ctx.meetingRowId,
         projectRowId: ctx.projectRowId,
         linkRowIds: ctx.linkRowIds,
+        occurredAt,
       });
       if (!res.ok) {
         toast.error(res.error);
@@ -141,6 +146,7 @@ export function Composer({
       setValue("");
       setPopoverOpen(false);
       onCreated?.();
+      if (res.data.openRef) router.push(`${window.location.pathname.replace(/\/w\/([^/]+).*/, "/w/$1")}/r/${encodeURIComponent(res.data.openRef)}`);
     });
   }
 
@@ -233,6 +239,8 @@ export function Composer({
           {(parsed.probability !== undefined || parsed.impact !== undefined) && (
             <Tone color="red">p{parsed.probability ?? "?"}·i{parsed.impact ?? "?"}</Tone>
           )}
+          {parsed.status && <Tone>status {parsed.status}</Tone>}
+          {parsed.at && <Tone color="amber">at {new Date(parsed.at).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })}</Tone>}
           {uploading && <span className="ml-1 text-[11px] text-ink-3">Uploading {uploading}…</span>}
           <span className="flex-1" />
           <button type="button" onClick={() => fileRef.current?.click()} disabled={busy} title="Attach a file" className="rounded-2 p-1 text-ink-3 hover:bg-bg-2 hover:text-ink">

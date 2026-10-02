@@ -25,6 +25,7 @@ const SaveView = z.object({
   name: z.string().min(1).max(80),
   layout: z.enum(["list", "board"]),
   config: Config,
+  pinned: z.boolean().optional(),
 });
 
 async function slugForTable(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"], tableId: string) {
@@ -46,6 +47,7 @@ export async function saveView(input: z.infer<typeof SaveView>) {
     name: v.data.name.trim(),
     layout: v.data.layout,
     config: { ...v.data.config, q: undefined },
+    ...(v.data.pinned !== undefined ? { pinned: v.data.pinned } : {}),
   };
   const res = v.data.viewId
     ? await supabase.from("views").update(payload).eq("id", v.data.viewId).select("id").single()
@@ -62,6 +64,18 @@ export async function deleteView(input: { viewId: string }) {
   const { data: view } = await supabase.from("views").select("table_id").eq("id", input.viewId).maybeSingle();
   if (!view) return fail("View not found.");
   const { error } = await supabase.from("views").delete().eq("id", input.viewId);
+  if (error) return fail(error.message);
+  const slug = await slugForTable(supabase, view.table_id);
+  if (slug) revalidateWorkspace(slug);
+  return { ok: true as const };
+}
+
+export async function pinView(input: { viewId: string; pinned: boolean }) {
+  const { supabase, user } = await requireUser();
+  if (!user) return fail("Not signed in.");
+  const { data: view } = await supabase.from("views").select("table_id").eq("id", input.viewId).maybeSingle();
+  if (!view) return fail("View not found.");
+  const { error } = await supabase.from("views").update({ pinned: input.pinned }).eq("id", input.viewId);
   if (error) return fail(error.message);
   const slug = await slugForTable(supabase, view.table_id);
   if (slug) revalidateWorkspace(slug);

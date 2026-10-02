@@ -90,6 +90,19 @@ describe("filters", () => {
   });
 });
 
+describe("@me filter", () => {
+  const rows = [row("A", { owner: "u1" }), row("B", { owner: "u2" }), row("C", {})];
+  it("eq @me matches the caller's row id; nobody when signed-in user has no People row", () => {
+    const f = { key: "owner", op: "eq" as const, value: "@me" };
+    expect(applyView(rows, { filters: [f] }, [], {}, "u1").map((r) => r.ref_code)).toEqual(["A"]);
+    expect(applyView(rows, { filters: [f] }, [], {}, null)).toEqual([]);
+  });
+  it("neq @me excludes the caller", () => {
+    const f = { key: "owner", op: "neq" as const, value: "@me" };
+    expect(applyView(rows, { filters: [f] }, [], {}, "u1").map((r) => r.ref_code)).toEqual(["B", "C"]);
+  });
+});
+
 describe("applyView", () => {
   const defs = [def("status", "select", ["open", "done"]), def("due", "date"), def("owner", "person")];
   const rows = [

@@ -37,6 +37,20 @@ export async function createEntry(input: CreateEntryInput) {
   const parsed = parseComposer(raw);
   if (!parsed.body && parsed.type === "note") return fail("Nothing to log.");
   const { rows, people, me } = await resolveRefs(supabase, workspaceId, user.id, parsed.refs);
+  const when = occurredAt ?? parsed.at;
+
+  // System tables, so a slash command can update an existing row instead of creating one.
+  const { data: sysTables } = await supabase
+    .from("tables")
+    .select("id, kind, ref_prefix")
+    .eq("workspace_id", workspaceId)
+    .neq("kind", "custom");
+  const tableOfKind = (k: string) => (sysTables ?? []).find((t) => t.kind === k);
+  const kindOfCommand: Record<string, string> = { action: "actions", decision: "decisions", risk: "risks" };
+  const targetKind = kindOfCommand[parsed.type];
+  const targetTable = targetKind ? tableOfKind(targetKind) : undefined;
+  // `/done #ACT-3`, `/risk #RSK-14 status:closed p:2` → the referenced row in the matching table
+  const existing = targetTable ? rows.find((r) => r.table_id === targetTable.id) : undefined;
 
   // Project: explicit, else inherit from the first linked row that has one.
   let project: string | null = projectRowId ?? null;
@@ -63,7 +77,7 @@ export async function createEntry(input: CreateEntryInput) {
       body_md: parsed.body,
       meeting_row_id: meetingRowId ?? null,
       project_row_id: project,
-      ...(occurredAt ? { occurred_at: occurredAt } : {}),
+      ...(when ? { occurred_at: when } : {}),
     })
     .select("id, type, body_md, occurred_at")
     .single();
@@ -83,33 +97,62 @@ export async function createEntry(input: CreateEntryInput) {
       );
   }
 
-  // System row for action / decision / risk.
-  const kind = ({ action: "actions", decision: "decisions", risk: "risks" } as Record<string, string>)[
-    parsed.type
-  ];
-  if (kind) {
-    const { data: table } = await supabase
-      .from("tables")
-      .select("id")
-      .eq("workspace_id", workspaceId)
-      .eq("kind", kind)
-      .maybeSingle();
+  let openRef: string | null = null;
+
+  if (existing) {
+    // Update the referenced row: status / due / p / i from the line; `/done` means status done.
+    const { data: cur } = await supabase.from("rows").select("props").eq("id", existing.id).maybeSingle();
+    const patch: Props = {};
+    if (parsed.doneShortcut) patch.status = "done";
+    if (parsed.status) patch.status = parsed.status;
+    if (parsed.due) patch.due = parsed.due;
+    if (parsed.probability !== undefined) patch.probability = parsed.probability;
+    if (parsed.impact !== undefined) patch.impact = parsed.impact;
+    if (Object.keys(patch).length > 0) {
+      await supabase
+        .from("rows")
+        .update({ props: { ...((cur?.props as Props) ?? {}), ...patch } })
+        .eq("id", existing.id);
+    }
+  } else if (parsed.type === "meeting") {
+    // `/meeting Steerco weekly` → a Meetings row, live, dated today; the entry records the start.
+    const table = tableOfKind("meetings");
     if (table) {
+      const { data: mtg } = await supabase
+        .from("rows")
+        .insert({
+          workspace_id: workspaceId,
+          table_id: table.id,
+          title: parsed.body.slice(0, 300) || "Meeting",
+          props: { date: (when ?? new Date().toISOString()).slice(0, 10), status: "live", project },
+          source_entry_id: entry.id,
+        })
+        .select("id, ref_code")
+        .single();
+      if (mtg) {
+        await supabase.from("entries").update({ body_md: `Started #${mtg.ref_code} ${parsed.body}`.trim() }).eq("id", entry.id);
+        await supabase.from("entry_refs").upsert({ entry_id: entry.id, row_id: mtg.id }, { onConflict: "entry_id,row_id", ignoreDuplicates: true });
+        openRef = mtg.ref_code;
+      }
+    }
+  } else if (targetTable) {
+    const table = targetTable;
+    {
       const owner = people[0]?.id ?? me?.id ?? null;
       const props: Props =
         parsed.type === "action"
           ? {
-              status: parsed.doneShortcut ? "done" : "open",
+              status: parsed.doneShortcut ? "done" : (parsed.status ?? "open"),
               owner,
               due: parsed.due ?? null,
               project,
             }
           : parsed.type === "decision"
-            ? { status: "proposed", decided_by: me?.id ?? null, project }
+            ? { status: parsed.status ?? "proposed", decided_by: me?.id ?? null, project }
             : {
                 probability: parsed.probability ?? 3,
                 impact: parsed.impact ?? 3,
-                status: "open",
+                status: parsed.status ?? "open",
                 owner,
                 project,
               };
@@ -127,7 +170,7 @@ export async function createEntry(input: CreateEntryInput) {
   if (ws?.slug) revalidateWorkspace(ws.slug);
   return {
     ok: true as const,
-    data: entry as { id: string; type: EntryType; body_md: string; occurred_at: string },
+    data: { ...(entry as { id: string; type: EntryType; body_md: string; occurred_at: string }), openRef },
   };
 }
 

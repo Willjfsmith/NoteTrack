@@ -30,7 +30,7 @@ export function renderBody(body: string, opts: { slug: string; className?: strin
         <Link
           key={`r-${m.i}`}
           href={`/w/${opts.slug}/r/${encodeURIComponent(code)}`}
-          className="mx-px inline-flex items-center rounded-1 border border-line bg-bg-2 px-1 font-mono text-[11px] leading-[16px] text-ink-2 no-underline hover:border-accent-bd hover:bg-accent-bg hover:text-accent"
+          className="rounded-1 px-0.5 font-mono text-[12px] text-ink-2 underline decoration-line-3 decoration-dotted underline-offset-2 hover:bg-accent-bg hover:text-accent hover:decoration-accent-bd"
         >
           {m.t}
         </Link>,

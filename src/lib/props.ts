@@ -114,21 +114,25 @@ function isEmpty(v: PropValue): boolean {
   return v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
 }
 
-export function matchesFilter(row: RowData, f: Filter, lookup: RowLookup = {}): boolean {
+/** `@me` in a person filter resolves to the caller's People row id. */
+export const ME = "@me";
+
+export function matchesFilter(row: RowData, f: Filter, lookup: RowLookup = {}, meId?: string | null): boolean {
   const v = readKey(row, f.key);
+  const fv = f.value === ME ? (meId ?? "\u0000none") : f.value;
   switch (f.op) {
     case "empty":
       return isEmpty(v);
     case "not_empty":
       return !isEmpty(v);
     case "eq":
-      if (Array.isArray(v)) return v.includes(String(f.value));
-      if (typeof v === "boolean") return v === (f.value === true || f.value === "true");
-      return String(v ?? "") === String(f.value ?? "");
+      if (Array.isArray(v)) return v.includes(String(fv));
+      if (typeof v === "boolean") return v === (fv === true || fv === "true");
+      return String(v ?? "") === String(fv ?? "");
     case "neq":
-      if (Array.isArray(v)) return !v.includes(String(f.value));
-      if (typeof v === "boolean") return v !== (f.value === true || f.value === "true");
-      return String(v ?? "") !== String(f.value ?? "");
+      if (Array.isArray(v)) return !v.includes(String(fv));
+      if (typeof v === "boolean") return v !== (fv === true || fv === "true");
+      return String(v ?? "") !== String(fv ?? "");
     case "contains": {
       const needle = String(f.value ?? "").toLowerCase();
       if (needle === "") return true;
@@ -169,9 +173,10 @@ export function applyView(
   config: ViewConfig,
   defs: PropertyDef[],
   lookup: RowLookup = {},
+  meId?: string | null,
 ): RowData[] {
   let out = rows;
-  for (const f of config.filters ?? []) out = out.filter((r) => matchesFilter(r, f, lookup));
+  for (const f of config.filters ?? []) out = out.filter((r) => matchesFilter(r, f, lookup, meId));
   const q = (config.q ?? "").trim().toLowerCase();
   if (q) {
     out = out.filter((r) => {

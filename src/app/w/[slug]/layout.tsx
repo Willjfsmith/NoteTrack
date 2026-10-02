@@ -17,7 +17,7 @@ export default async function WorkspaceLayout({
   const nav = ctx.tables.map((t) => ({
     slug: t.slug,
     name: t.name,
-    views: t.views.map((v) => ({ id: v.id, name: v.name })),
+    views: t.views.map((v) => ({ id: v.id, name: v.name, pinned: v.pinned })),
   }));
 
   return (

@@ -66,7 +66,16 @@ export function ListLayout({
               </td>
               {cols.map((c) => (
                 <td key={c.id} className={cn("px-2 py-1 align-top", c.type === "number" && "w-20")}>
-                  <PropCell def={c} value={r.props[c.key] ?? null} lookup={lookup} pickers={pickers} slug={slug} editable={canEdit} onChange={(v) => setProp(r, c.key, v)} />
+                  <PropCell
+                    def={c}
+                    value={r.props[c.key] ?? null}
+                    lookup={lookup}
+                    pickers={pickers}
+                    slug={slug}
+                    editable={canEdit}
+                    onChange={(v) => setProp(r, c.key, v)}
+                    dueTone={c.type === "date" && c.key === "due" && !["done", "closed"].includes(String(r.props.status ?? ""))}
+                  />
                 </td>
               ))}
               {isRisks && <td className="px-2 py-1 align-top"><Score props={r.props} /></td>}

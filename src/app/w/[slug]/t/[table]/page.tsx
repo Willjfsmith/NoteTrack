@@ -22,7 +22,7 @@ export default async function TablePage({ params }: { params: Promise<{ slug: st
     <>
       <RefreshOnChange table="rows" filter={`table_id=eq.${table.id}`} />
       <PageHeader label={`${ctx.workspace.name} · ${table.ref_prefix}`} title={table.name} className="mb-3" />
-      <TableView slug={slug} workspaceId={ctx.workspace.id} table={table} rows={rows} lookup={lookup} pickers={pickers} canEdit={ctx.role !== "viewer"} />
+      <TableView slug={slug} workspaceId={ctx.workspace.id} table={table} rows={rows} lookup={lookup} pickers={pickers} canEdit={ctx.role !== "viewer"} meId={ctx.me?.id ?? null} />
     </>
   );
 }

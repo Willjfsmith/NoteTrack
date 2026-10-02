@@ -95,6 +95,7 @@ export type ViewDef = {
   name: string;
   layout: ViewLayout;
   config: ViewConfig;
+  pinned: boolean;
   sort_order: number;
 };
 

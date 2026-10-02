@@ -147,9 +147,11 @@ create table if not exists public.views (
   name       text not null,
   layout     text not null default 'list' check (layout in ('list','board')),
   config     jsonb not null default '{}'::jsonb,  -- { filters:[{key,op,value}], sort:{key,dir}, group:key }
+  pinned     boolean not null default false,      -- shown at the top of the sidebar
   sort_order smallint not null default 0,
   created_at timestamptz not null default now()
 );
+alter table public.views add column if not exists pinned boolean not null default false;
 create index if not exists views_table_idx on public.views (table_id, sort_order);
 
 -- ===== TRIGGERS ======================================================

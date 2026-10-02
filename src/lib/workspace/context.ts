@@ -51,7 +51,7 @@ export const getWorkspaceContext = cache(async (slug: string): Promise<Workspace
         .order("sort_order"),
       supabase
         .from("views")
-        .select("id, table_id, name, layout, config, sort_order, tables!inner(workspace_id)")
+        .select("id, table_id, name, layout, config, pinned, sort_order, tables!inner(workspace_id)")
         .eq("tables.workspace_id", ws.id)
         .order("sort_order"),
       supabase
@@ -88,6 +88,7 @@ export const getWorkspaceContext = cache(async (slug: string): Promise<Workspace
       name: v.name,
       layout: v.layout,
       config: (v.config ?? {}) as ViewDef["config"],
+      pinned: Boolean(v.pinned),
       sort_order: v.sort_order,
     });
     viewsByTable.set(v.table_id, arr);

@@ -24,6 +24,7 @@ export function PropCell({
   editable = true,
   className,
   placeholder = "—",
+  dueTone = false,
 }: {
   def: PropertyDef;
   value: PropValue;
@@ -34,6 +35,8 @@ export function PropCell({
   editable?: boolean;
   className?: string;
   placeholder?: string;
+  /** colour a date red when past and amber when today (for open items' due dates) */
+  dueTone?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<string>(toDraft(value));
@@ -82,6 +85,8 @@ export function PropCell({
         <a href={value} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="truncate text-accent hover:underline">
           {value.replace(/^https?:\/\//, "")}
         </a>
+      ) : def.type === "date" && typeof value === "string" && value ? (
+        <span className={cn("font-mono text-[12px]", dueTone && dateTone(value))}>{formatDate(value)}</span>
       ) : def.type === "select" && display ? (
         <span className="chip font-sans normal-case">{display}</span>
       ) : def.type === "multi_select" && Array.isArray(value) ? (
@@ -212,4 +217,19 @@ function toDraft(v: PropValue): string {
   if (v === null || v === undefined) return "";
   if (Array.isArray(v)) return v.join(", ");
   return String(v);
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso + "T12:00:00");
+  if (Number.isNaN(d.getTime())) return iso;
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }) });
+}
+
+function dateTone(iso: string): string {
+  const today = new Date();
+  const t = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  if (iso < t) return "text-tone-red-ink";
+  if (iso === t) return "text-tone-amber-ink";
+  return "";
 }

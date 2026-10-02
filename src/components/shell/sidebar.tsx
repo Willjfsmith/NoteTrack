@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { BookOpen, Search, Settings, Table2, Menu, X } from "lucide-react";
+import { BookOpen, Pin, Search, Settings, Table2, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Kbd } from "@/components/ui/kbd";
 
-export type NavTable = { slug: string; name: string; views: Array<{ id: string; name: string }> };
+export type NavTable = { slug: string; name: string; views: Array<{ id: string; name: string; pinned?: boolean }> };
 
 export function Sidebar({
   slug,
@@ -28,6 +28,7 @@ export function Sidebar({
 
   const item = (href: string, label: string, Icon: typeof BookOpen, active: boolean) => (
     <Link
+      key={href}
       href={href}
       onClick={() => setOpen(false)}
       className={cn(
@@ -51,6 +52,11 @@ export function Sidebar({
 
       <nav className="flex flex-col gap-px">
         {item(`${base}/diary`, "Diary", BookOpen, pathname.startsWith(`${base}/diary`))}
+        {tables.flatMap((t) =>
+          t.views
+            .filter((v) => v.pinned)
+            .map((v) => item(`${base}/t/${t.slug}?view=${v.id}`, v.name, Pin, pathname === `${base}/t/${t.slug}` && activeView === v.id)),
+        )}
         {item(`${base}/search`, "Search", Search, pathname.startsWith(`${base}/search`))}
       </nav>
 

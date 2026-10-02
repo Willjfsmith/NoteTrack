@@ -15,7 +15,7 @@ export default async function DiaryPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ project?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ project?: string; from?: string; to?: string; n?: string }>;
 }) {
   const { slug } = await params;
   const sp = await searchParams;
@@ -27,13 +27,18 @@ export default async function DiaryPage({
   const projects = projectsTable ? await fetchRowRefs(projectsTable.id) : [];
   const project = sp.project ? await fetchRowByRef(ctx.workspace.id, sp.project) : null;
 
-  const entries = await fetchEntries(ctx.workspace.id, {
+  const PAGE = 300;
+  const limit = Math.min(5000, Math.max(PAGE, Number(sp.n) || PAGE));
+  const fetched = await fetchEntries(ctx.workspace.id, {
     projectRowId: project?.id,
     from: sp.from,
     to: sp.to,
     includeStruck: true,
-    limit: 300,
+    limit: limit + 1,
   });
+  const hasMore = fetched.length > limit;
+  const entries = hasMore ? fetched.slice(0, limit) : fetched;
+  const olderParams = new URLSearchParams({ ...(sp.project ? { project: sp.project } : {}), ...(sp.from ? { from: sp.from } : {}), ...(sp.to ? { to: sp.to } : {}), n: String(limit + PAGE) });
 
   const exportParams: Record<string, string> = {};
   if (sp.project) exportParams.project = sp.project;
@@ -65,6 +70,13 @@ export default async function DiaryPage({
       />
       <div className="mt-5">
         <EntryList slug={slug} entries={entries} />
+        {hasMore && (
+          <div className="mt-3 text-center">
+            <Link href={`${href.diary(slug)}?${olderParams.toString()}`} className="inline-block rounded-2 border border-line bg-surface px-3 py-1 text-[12px] text-ink-2 hover:border-line-3">
+              Show older entries
+            </Link>
+          </div>
+        )}
       </div>
     </>
   );

@@ -3,12 +3,12 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Download, LayoutList, KanbanSquare, Plus, Save, Trash2, X } from "lucide-react";
+import { Download, LayoutList, KanbanSquare, Pin, PinOff, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { applyView, groupRows, keyLabel } from "@/lib/props";
+import { ME, applyView, groupRows, keyLabel } from "@/lib/props";
 import { createRow } from "@/lib/rows/mutations";
-import { deleteView, saveView } from "@/lib/views/mutations";
+import { deleteView, pinView, saveView } from "@/lib/views/mutations";
 import type { Filter, FilterOp, RowData, RowLookup, TableDef } from "@/lib/types";
 import { useViewState } from "./view-state";
 import { ListLayout } from "./list-layout";
@@ -33,6 +33,7 @@ export function TableView({
   lookup,
   pickers,
   canEdit,
+  meId,
 }: {
   slug: string;
   workspaceId: string;
@@ -41,6 +42,7 @@ export function TableView({
   lookup: RowLookup;
   pickers: PickerOptions;
   canEdit: boolean;
+  meId: string | null;
 }) {
   const vs = useViewState(table.views);
   const router = useRouter();
@@ -59,11 +61,13 @@ export function TableView({
   }
 
   const defs = table.properties;
-  const visible = useMemo(() => applyView(rows, vs.config, defs, lookup), [rows, vs.config, defs, lookup]);
+  const visible = useMemo(() => applyView(rows, vs.config, defs, lookup, meId), [rows, vs.config, defs, lookup, meId]);
   const selectDefs = defs.filter((d) => d.type === "select");
   const groupDef = defs.find((d) => d.key === vs.config.group) ?? (vs.layout === "board" ? selectDefs[0] : undefined);
   const groups = useMemo(() => groupRows(visible, groupDef), [visible, groupDef]);
   const filters = vs.config.filters ?? [];
+  // properties pinned to one value by a filter carry no information on a card
+  const hideKeys = filters.filter((f) => f.op === "eq").map((f) => f.key);
   const sortKeys = [{ key: "title", name: "Title" }, { key: "ref_code", name: "Ref" }, { key: "created_at", name: "Created" }, { key: "updated_at", name: "Updated" }, ...defs.map((d) => ({ key: d.key, name: d.name }))];
 
   function patchLocal(rowId: string, patch: Partial<RowData>) {
@@ -75,7 +79,7 @@ export function TableView({
     if (!title) return;
     // when grouped and filtered by a single select value, prefill it
     const props: Record<string, unknown> = {};
-    for (const f of filters) if (f.op === "eq" && f.value !== undefined) props[f.key] = f.value;
+    for (const f of filters) if (f.op === "eq" && f.value !== undefined) props[f.key] = f.value === ME ? (meId ?? undefined) : f.value;
     start(async () => {
       const res = await createRow({ workspaceId, tableId: table.id, title, props });
       if (!res.ok) { toast.error(res.error); return; }
@@ -100,6 +104,15 @@ export function TableView({
       toast.success("View saved");
       vs.setView(res.data.id);
       router.refresh();
+    });
+  }
+  function togglePin() {
+    if (!vs.saved) return;
+    const { id, pinned } = vs.saved;
+    start(async () => {
+      const res = await pinView({ viewId: id, pinned: !pinned });
+      if (!res.ok) toast.error(res.error);
+      else router.refresh();
     });
   }
   function removeView() {
@@ -141,7 +154,7 @@ export function TableView({
       <div className="mb-2 flex flex-wrap items-center gap-1 text-[11.5px]">
         {filters.map((f, i) => (
           <span key={i} className="chip font-sans normal-case">
-            {keyLabel(defs, f.key)} {OPS.find((o) => o.op === f.op)?.label} {f.value !== undefined ? <b>{String(f.value)}</b> : null}
+            {keyLabel(defs, f.key)} {OPS.find((o) => o.op === f.op)?.label} {f.value !== undefined ? <b>{filterValueLabel(defs, f, lookup, pickers)}</b> : null}
             <button onClick={() => vs.setFilters(filters.filter((_, j) => j !== i))} className="ml-0.5 text-ink-4 hover:text-ink"><X className="h-2.5 w-2.5" /></button>
           </span>
         ))}
@@ -180,6 +193,9 @@ export function TableView({
         {canEdit && vs.saved && (
           <>
             <button onClick={() => persistView(true)} className="text-ink-3 hover:text-ink">save as new</button>
+            <button onClick={togglePin} className="inline-flex items-center gap-1 text-ink-3 hover:text-ink" title={vs.saved.pinned ? "Unpin from sidebar" : "Pin to sidebar"}>
+              {vs.saved.pinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
+            </button>
             <button onClick={removeView} className="inline-flex items-center gap-1 text-ink-3 hover:text-tone-red-ink"><Trash2 className="h-3 w-3" /></button>
           </>
         )}
@@ -196,7 +212,7 @@ export function TableView({
       )}
 
       {vs.layout === "board" ? (
-        <BoardLayout slug={slug} table={table} groups={groups} groupDef={groupDef} lookup={lookup} canEdit={canEdit} onLocalPatch={patchLocal} />
+        <BoardLayout slug={slug} table={table} groups={groups} groupDef={groupDef} lookup={lookup} canEdit={canEdit} onLocalPatch={patchLocal} hideKeys={hideKeys} />
       ) : (
         <ListLayout slug={slug} table={table} rows={visible} lookup={lookup} pickers={pickers} canEdit={canEdit} onLocalPatch={patchLocal} />
       )}
@@ -243,6 +259,7 @@ function FilterEditor({ defs, pickers, onDone }: { defs: TableDef["properties"];
       ) : needsValue && def && (def.type === "person" || def.type === "relation") ? (
         <select value={value} onChange={(e) => setValue(e.target.value)} className="field-sm">
           <option value="">choose…</option>
+          {def.type === "person" && <option value={ME}>@me (whoever is signed in)</option>}
           {(pickers[def.key] ?? []).map((o) => <option key={o.id} value={o.id}>{o.title}</option>)}
         </select>
       ) : needsValue ? (
@@ -252,4 +269,14 @@ function FilterEditor({ defs, pickers, onDone }: { defs: TableDef["properties"];
       <button onClick={() => onDone(null)} className="text-ink-3">cancel</button>
     </span>
   );
+}
+
+/** Human label for a filter value: @me, a person/relation title, or the raw value. */
+function filterValueLabel(defs: TableDef["properties"], f: Filter, lookup: RowLookup, pickers: PickerOptions): string {
+  if (f.value === ME) return "@me";
+  const def = defs.find((d) => d.key === f.key);
+  if (def && (def.type === "person" || def.type === "relation") && typeof f.value === "string") {
+    return lookup[f.value]?.title ?? pickers[def.key]?.find((r) => r.id === f.value)?.title ?? String(f.value);
+  }
+  return String(f.value);
 }

@@ -92,6 +92,9 @@ begin
   perform public._add_property(t_stake, 'project', 'Project', 'relation', '[]', t_projects, 4);
 
   -- Default saved views
+  insert into public.views (table_id, name, layout, config, pinned, sort_order) values
+    (t_actions, 'On me', 'list',
+      '{"filters":[{"key":"owner","op":"eq","value":"@me"},{"key":"status","op":"neq","value":"done"}],"sort":{"key":"due","dir":"asc"}}', true, 0);
   insert into public.views (table_id, name, layout, config, sort_order) values
     (t_actions, 'Open', 'list',
       '{"filters":[{"key":"status","op":"neq","value":"done"}],"sort":{"key":"due","dir":"asc"}}', 1),

@@ -65,9 +65,15 @@ Open <http://localhost:3000>, sign in with a magic link, and create a workspace.
 | `/done paid the comms invoice` | An action already marked done. |
 | `/decision switch gearbox vendor #SAG-mill` | A proposed decision in the Decisions table. |
 | `/risk HV switchgear lead time #SWG-401 @lr p:4 i:4` | A risk scored 16, owned by `lr`. |
-| `@me` | You, via the People row linked to your sign-in. |
+| `/done #ACT-241 sent the markup` | Closes the existing action ACT-241 and logs the entry against it. Any `/todo`, `/risk` or `/decision` line that names an existing row updates it instead of creating one. |
+| `/risk #RSK-14 status:closed p:1` | Updates that risk's status and probability. `status:` works on actions and decisions too. |
+| `/meeting Steerco weekly` | Creates a Meetings row, marks it live, and opens its notes pad. |
+| `walked the pour at:yesterday@14:30` | Backdates the entry. Also `at:14:30`, `at:mon`, `at:2026-09-30`, `at:-2d`. |
+| `@me` | You, via the People row linked to your sign-in. Also a filter value for person properties, so a saved view can mean "whoever is signed in". |
 
-On a table page, click a cell to edit it. Switch to the board, group by any select property, and drag a card: the property changes and the diary records a `gate` entry. Filters, sort and grouping save as named views in the sidebar.
+On a table page, click a cell to edit it. Switch to the board, group by any select property, and drag a card: the property changes and the diary records a `gate` entry. Filters, sort and grouping save as named views; a pinned view sits at the top of the sidebar. The seeded "On me" view is open actions where owner is `@me`.
+
+The diary has Today / This week / Last week / 30 days presets, and the Markdown export follows whatever range and project are showing.
 
 On the iPad, the composer accepts Pencil handwriting through Scribble, and the pen icon opens a canvas for a sketch. Finger touches are ignored on the canvas unless you switch them on, which gives palm rejection for free. Sketches are saved once and are not editable afterwards.
 
