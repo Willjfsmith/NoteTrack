@@ -2,75 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===== NoteTrack design tokens (ported from daytrack.css) ===== */
+/* ===== NoteTrack tokens — compact, monochrome, one accent ===== */
 :root {
-  --bg: #fafaf9;
-  --bg-2: #f4f4f2;
-  --bg-3: #ededeb;
+  --bg: #f7f7f6;
+  --bg-2: #f0f0ee;
+  --bg-3: #e8e8e5;
   --surface: #ffffff;
-  --surface-2: #f8f8f6;
-  --overlay: rgba(17, 17, 17, 0.55);
+  --surface-2: #fafaf9;
+  --overlay: rgba(20, 20, 20, 0.5);
 
-  --ink: #18181b;
-  --ink-2: #3f3f46;
-  --ink-3: #71717a;
-  --ink-4: #a1a1aa;
-  --ink-5: #d4d4d8;
+  --ink: #161616;
+  --ink-2: #3d3d3d;
+  --ink-3: #6e6e6e;
+  --ink-4: #9a9a9a;
+  --ink-5: #c9c9c6;
 
-  --line: #e7e7e4;
-  --line-2: #dcdcd8;
-  --line-3: #c8c8c4;
-  --focus: #1f6feb;
+  --line: #e4e4e1;
+  --line-2: #d6d6d2;
+  --line-3: #bdbdb8;
 
-  --accent: #1f6feb;
-  --accent-h: #1858c4;
-  --accent-bg: #eff5ff;
-  --accent-bd: #c8d8f7;
+  /* the one accent */
+  --accent: #2456d6;
+  --accent-h: #1b45b0;
+  --accent-bg: #edf2fd;
+  --accent-bd: #c3d2f5;
   --accent-ink: #ffffff;
+  --focus: var(--accent);
 
-  --tone-yellow-bg: #fff7d6;
-  --tone-yellow-bd: #f3d97a;
-  --tone-yellow-ink: #6b4f00;
+  /* semantic tones, used sparingly */
+  --tone-red-bg: #fbeaea;
+  --tone-red-bd: #efbcbc;
+  --tone-red-ink: #9a2323;
 
-  --tone-red-bg: #fde8e7;
-  --tone-red-bd: #f1b3b1;
-  --tone-red-ink: #8a1d1a;
+  --tone-amber-bg: #fcf3df;
+  --tone-amber-bd: #ecd59a;
+  --tone-amber-ink: #7a5200;
 
-  --tone-green-bg: #e3f6ea;
-  --tone-green-bd: #a8d9b9;
-  --tone-green-ink: #155a2c;
-
-  --tone-blue-bg: #e6f0ff;
-  --tone-blue-bd: #b5cff7;
-  --tone-blue-ink: #1f4a99;
-
-  --tone-purple-bg: #efe9ff;
-  --tone-purple-bd: #cdbcfb;
-  --tone-purple-ink: #4a2c9c;
-
-  --tone-orange-bg: #ffeedb;
-  --tone-orange-bd: #f4c58a;
-  --tone-orange-ink: #8a4500;
-
-  --tone-pink-bg: #fde6ee;
-  --tone-pink-bd: #f1b3c7;
-  --tone-pink-ink: #8a1d4f;
+  --tone-green-bg: #e7f4ea;
+  --tone-green-bd: #b4dcbe;
+  --tone-green-ink: #1f5f33;
 
   --tone-grey-bg: #f0f0ee;
-  --tone-grey-bd: #d4d4d0;
-  --tone-grey-ink: #52525b;
+  --tone-grey-bd: #d6d6d2;
+  --tone-grey-ink: #3d3d3d;
 
-  --r-1: 4px;
-  --r-2: 6px;
-  --r-3: 8px;
-  --r-4: 10px;
-  --r-5: 14px;
+  --r-1: 3px;
+  --r-2: 4px;
+  --r-3: 6px;
+  --r-4: 8px;
 
-  --sh-1: 0 1px 0 rgba(17, 17, 17, 0.04);
-  --sh-2: 0 1px 2px rgba(17, 17, 17, 0.06), 0 1px 0 rgba(17, 17, 17, 0.04);
-  --sh-3: 0 4px 12px rgba(17, 17, 17, 0.06), 0 1px 0 rgba(17, 17, 17, 0.04);
-  --sh-pop: 0 16px 40px rgba(17, 17, 17, 0.18), 0 2px 6px rgba(17, 17, 17, 0.08);
-  --ring: 0 0 0 3px rgba(31, 111, 235, 0.18);
+  --sh-1: 0 1px 0 rgba(0, 0, 0, 0.04);
+  --sh-2: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 0 rgba(0, 0, 0, 0.04);
+  --sh-pop: 0 12px 32px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.08);
+  --ring: 0 0 0 2px rgba(36, 86, 214, 0.25);
 }
 
 * {
@@ -81,18 +65,42 @@ html,
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-sans), ui-sans-serif, system-ui;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  font-feature-settings: "cv11", "ss01", "tnum";
 }
 
-/* Focus rings everywhere */
 button:focus-visible,
 a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
 [tabindex]:focus-visible {
   outline: none;
   box-shadow: var(--ring);
   border-radius: var(--r-2);
+}
+
+/* compact form controls */
+.field {
+  @apply w-full rounded-2 border border-line bg-surface px-2 py-1 text-[13px] text-ink outline-none placeholder:text-ink-4 focus:border-accent-bd;
+}
+.field-sm {
+  @apply rounded-2 border border-line bg-surface px-1.5 py-0.5 text-[12px] text-ink outline-none placeholder:text-ink-4 focus:border-accent-bd;
+}
+.label {
+  @apply font-mono text-[10.5px] uppercase tracking-[0.06em] text-ink-3;
+}
+.chip {
+  @apply inline-flex items-center gap-1 rounded-1 border border-line bg-bg-2 px-1.5 py-px font-mono text-[10.5px] leading-[16px] text-ink-2;
+}
+
+/* ink canvas: no page gestures while drawing */
+.ink-surface {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }

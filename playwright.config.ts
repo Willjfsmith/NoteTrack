@@ -12,6 +12,8 @@ export default defineConfig({
     baseURL: BASE_URL,
     trace: "on-first-retry",
     headless: true,
+    // Point at a system Chromium when the Playwright-managed one is not installed.
+    ...(process.env.PW_CHROMIUM_PATH ? { launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH } } : {}),
   },
   webServer: {
     command: `pnpm dev`,

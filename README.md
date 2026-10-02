@@ -1,24 +1,21 @@
 # NoteTrack
 
-A project diary for engineering teams. Captures notes, actions, decisions, risks, gate moves and meetings against a single project, cross-linked with `#item` and `@person` references.
+A diary and a set of tables, cross-linked. Built for an engineer who also runs a department.
 
-Stack: **Next.js 15** (App Router, RSC) on **Vercel**, **Supabase** (Postgres, Auth, Storage, Realtime), Tailwind for styling.
+- **Diary.** One chronological stream. `/todo`, `/done`, `/decision`, `/risk`, `/call` type an entry; `#REF` links a row, `@id` mentions a person, `due:fri` sets a date, `p:4 i:3` scores a risk. Entries can be edited (the previous version is kept) or struck out. Sketches drawn with an Apple Pencil attach as images; handwriting typed through iPadOS Scribble just works.
+- **Tables.** Projects, People, Items, Actions, Decisions, Risks, Meetings, Stakeholders out of the box, plus any you add. Each table has typed properties (text, number, select, multi-select, date, person, relation, checkbox, URL), a list layout and a board layout, filters, sort, and saved views.
+- **Rows.** Every row has a page: its properties, the diary entries that mention it, and backlinks from other tables (a person's actions, a project's items and risks). A Meetings row's page is a notes pad whose lines become diary entries.
+- **Search and export.** Full-text search across entries and rows. Any diary range, row, or table exports to Markdown.
 
-The visual design is in `docs/design-reference/` — HTML/CSS prototype + screenshots.
+Stack: Next.js 15 (App Router) on Vercel, Supabase (Postgres, Auth, Storage, Realtime), Tailwind. Web only; works in Safari on an iPad.
 
 ---
 
-## Setup (first time)
+## Setup
 
-You need free accounts on:
+You need a [Supabase](https://supabase.com) project and a [Vercel](https://vercel.com) account, both free. Locally: Node 22 and pnpm (`corepack enable && corepack prepare pnpm@10 --activate`).
 
-- [GitHub](https://github.com) — already have one
-- [Supabase](https://supabase.com) — for the database & auth
-- [Vercel](https://vercel.com) — for hosting
-
-And on your computer: [Node.js 22](https://nodejs.org) (LTS), and `pnpm` (`corepack enable && corepack prepare pnpm@10 --activate`).
-
-### 1. Install dependencies
+### 1. Install
 
 ```bash
 pnpm install
@@ -26,89 +23,55 @@ pnpm install
 
 ### 2. Create a Supabase project
 
-1. Go to <https://app.supabase.com> → **New project**.
-2. Choose a region close to you, set a strong database password (save it somewhere).
-3. Wait ~2 minutes for the project to provision.
-4. In the project, go to **Project Settings → API** and copy:
-   - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
-   - `anon` public key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role` secret key → `SUPABASE_SERVICE_ROLE_KEY` (keep this private!)
-
-### 3. Configure environment variables
+Project Settings → API gives you the three values for `.env.local`:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Open `.env.local` and paste the three values above.
+### 3. Apply the schema
 
-### 4. Apply the database schema
+Open **SQL Editor → New query** and run, in order:
 
-In the Supabase dashboard, open **SQL Editor → New query**, paste the contents of:
+1. `supabase/migrations/0001_init.sql` — tables, RLS, triggers, realtime
+2. `supabase/migrations/0002_functions.sql` — `create_workspace`, `add_member_by_email`, `search_workspace`
+3. `supabase/migrations/0003_storage.sql` — the `attachments` bucket and its policies
 
-1. `supabase/migrations/0001_init.sql` — schema, RLS, indexes
-2. `supabase/migrations/0002_seed.sql` — sample "South Plant — Phase 2" data
-3. `supabase/migrations/0003_create_project_rpc.sql` — RPC for self-serve project creation
-4. `supabase/migrations/0004_storage.sql` — storage bucket + policies for the Library
+They are idempotent; re-running is safe. If you used the pre-v0.2 schema (projects / items / pipelines), use a fresh Supabase project: the model changed and there is no data migration.
 
-Run each in order.
-
-Then in the Supabase dashboard go to **Database → Replication** and make sure the
-`entries`, `actions`, and `gate_moves` tables are added to the realtime
-publication so the app's live updates work across tabs.
-
-### 5. Make yourself a member of the seed project
-
-Go to **SQL Editor**, run:
-
-```sql
--- Replace with the email you'll sign in with.
-insert into public.memberships (project_id, user_id, role)
-select p.id, u.id, 'owner'
-from public.projects p, auth.users u
-where p.code = 'SP-2' and u.email = 'YOUR-EMAIL@example.com';
-```
-
-You'll need to sign in once (next step) for your `auth.users` row to exist before this works.
-
-### 6. Run locally
+### 4. Sign in and create a workspace
 
 ```bash
 pnpm dev
 ```
 
-Open <http://localhost:3000>, click **Sign in**, request a magic link to your email. The first sign-in creates your `auth.users` row — then run the SQL from step 5, then refresh.
+Open <http://localhost:3000>, sign in with a magic link, and create a workspace. Tick *include a sample project* the first time so the screens are not empty. The workspace seeds the eight tables, their properties, a few saved views, and a People row for you.
+
+### 5. Deploy to Vercel
+
+1. Import the GitHub repo at <https://vercel.com/new>.
+2. Add the environment variables from `.env.local`, plus `NEXT_PUBLIC_SITE_URL` set to your Vercel domain.
+3. In Supabase, **Authentication → URL Configuration**, add the Vercel domain (and `https://*-<your-team>.vercel.app/**` for previews) to the redirect allow-list and set the Site URL.
+4. Every pull request gets a preview deployment; `main` is production.
 
 ---
 
-## Deploy to Vercel
+## Using it
 
-1. Push to GitHub (the project lives at `Willjfsmith/notetrack`).
-2. Go to <https://vercel.com/new>, import the repo.
-3. In **Environment Variables**, paste the same three values from `.env.local`.
-4. Add `NEXT_PUBLIC_SITE_URL` set to your Vercel domain (e.g. `https://notetrack.vercel.app`).
-5. Set the **Production Branch** to `main`.
-6. Click **Deploy**.
-7. After deploy, copy the deployed URL into your Supabase project's **Authentication → URL Configuration → Site URL** so magic-link redirects work.
+| You type | What happens |
+| --- | --- |
+| `Walked the plinth pour #SAG-mill` | A note linked to the row `SAG-mill`. Unknown refs create a row in the Items table. |
+| `/todo markup pump curves #PMP-101 @sk due:thu` | An action owned by `sk`, due Thursday, in the Actions table, linked to the item. |
+| `/done paid the comms invoice` | An action already marked done. |
+| `/decision switch gearbox vendor #SAG-mill` | A proposed decision in the Decisions table. |
+| `/risk HV switchgear lead time #SWG-401 @lr p:4 i:4` | A risk scored 16, owned by `lr`. |
+| `@me` | You, via the People row linked to your sign-in. |
 
-### Branch / preview model
+On a table page, click a cell to edit it. Switch to the board, group by any select property, and drag a card: the property changes and the diary records a `gate` entry. Filters, sort and grouping save as named views in the sidebar.
 
-- `main` is production. PRs into `main` get Vercel preview deploys automatically.
-- Day-to-day work happens on `claude/<topic>-<id>` branches.
-- Tag `v0.1.0` once a green build merges to `main` (use `git tag v0.1.0 && git push --tags`).
+On the iPad, the composer accepts Pencil handwriting through Scribble, and the pen icon opens a canvas for a sketch. Finger touches are ignored on the canvas unless you switch them on, which gives palm rejection for free. Sketches are saved once and are not editable afterwards.
 
-### Smoke tests
-
-End-to-end smoke tests live in `tests/e2e/` (Playwright). Run them with:
-
-```bash
-pnpm exec playwright install --with-deps chromium  # one-time
-pnpm test:e2e
-```
-
-The authenticated flows (`create entry`, `drag kanban card`) are skipped by
-default — they need a logged-in fixture which is straightforward to add once a
-service-role test helper exists.
+Adding a member: Settings → Members, enter the email of someone who has already signed in once. Nothing is emailed.
 
 ---
 
@@ -116,60 +79,45 @@ service-role test helper exists.
 
 | command | what it does |
 | --- | --- |
-| `pnpm dev` | Start the local dev server at http://localhost:3000 |
-| `pnpm build` | Production build (run before deploying) |
-| `pnpm typecheck` | Run TypeScript type checking |
-| `pnpm lint` | Run ESLint |
-| `pnpm test` | Run unit tests (Vitest) |
-| `pnpm test:e2e` | Run Playwright smoke tests |
-| `pnpm format` | Format the codebase with Prettier |
+| `pnpm dev` | Dev server at http://localhost:3000 |
+| `pnpm build` | Production build |
+| `pnpm typecheck` | TypeScript |
+| `pnpm lint` | ESLint |
+| `pnpm test` | Unit tests (Vitest): composer parser, property logic, Markdown export |
+| `pnpm test:e2e` | Playwright smoke tests for the public pages |
+
+CI (`.github/workflows/ci.yml`) runs all of those on every pull request, and applies the migrations plus `supabase/ci/smoke.sql` against a plain Postgres with stubbed `auth` and `storage` schemas.
 
 ---
 
-## Project layout
+## Layout
 
 ```
 src/
   app/
-    page.tsx                     # Public landing
-    login/                       # Magic-link sign-in
-    auth/callback/               # OAuth/OTP callback
-    select-project/              # Pick which project to work in
-    p/[code]/                    # All authenticated app screens
-      layout.tsx                 # Shell (sidebar + topbar)
-      today/                     # Diary
-      pipelines/ actions/ ...    # Sections (stubs in this build)
-    styleguide/                  # Dev-only design system page
+    page.tsx                 # landing
+    login/  auth/callback/   # magic-link sign-in
+    w/page.tsx               # workspace picker + create
+    w/[slug]/
+      layout.tsx             # sidebar + ⌘K palette
+      diary/                 # the diary
+      t/[table]/             # a table: list / board, filters, views
+      r/[ref]/               # a row page
+      search/  settings/     # full-text search; tables, properties, members
+      export/route.ts        # Markdown export
   components/
-    ui/                          # Tone, Avatar, RefChip, Kbd, Button
-    shell/                       # Sidebar, TopBar
+    composer/  diary/  ink/  # composer, entry list, sketch canvas
+    table/  row/  settings/  # table views + cell editors, row page parts, settings forms
+    shell/  ui/              # sidebar, palette, primitives
   lib/
-    supabase/                    # server / client helpers
-    utils.ts
-  middleware.ts                  # Auth guard for /p/* and /select-project
-
-supabase/migrations/             # Schema + seed
-docs/design-reference/           # HTML/CSS prototype + screenshots
+    types.ts  props.ts       # domain types; property coercion / filter / sort / group (pure)
+    workspace/  rows/  entries/  tables/  views/  members/  attachments/
+    composer/parse.ts        # the slash-command parser (pure)
+    export/markdown.ts       # Markdown export (pure)
+supabase/
+  migrations/                # 0001 schema · 0002 functions · 0003 storage
+  ci/                        # stubs + smoke SQL for plain Postgres
+docs/
+  BUILD_PLAN.md              # what v0.2 is, and what is deliberately left out
+  design-reference/          # the original v0.1 prototype, kept for reference
 ```
-
----
-
-## Build status
-
-This repo is the **scaffold** (Prompts 1–6 of the build plan in `docs/BUILD_PLAN.md`):
-
-- ✅ Next.js + Tailwind + Supabase clients
-- ✅ Magic-link auth + project selection
-- ✅ Database schema + RLS + seed
-- ✅ Design tokens + primitives (Tone / Avatar / RefChip / Kbd / Button)
-- ✅ App shell + Today (Home) page
-- ✅ Composer + slash parser + createEntry server action (Prompt 7)
-- ✅ Actions register with filters / keyboard shortcuts (Prompt 8)
-- ✅ Pipelines kanban with drag-and-drop + gate entries (Prompt 9)
-- ✅ Risks 5×5 register with heatmap (Prompt 10)
-- ✅ Meetings live notes via shared composer + realtime (Prompt 11)
-- ✅ Library / People / Watching / Item Detail / ⌘K search (Prompt 12)
-- ✅ Realtime, skeletons, error boundaries, smoke tests (Prompt 13)
-
-Remaining setup not in the repo: import to Vercel, set env vars, set the
-production branch to `main`, and tag `v0.1.0` once the first green deploy lands.

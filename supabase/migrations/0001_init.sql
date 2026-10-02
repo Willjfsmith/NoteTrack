@@ -1,463 +1,315 @@
--- NoteTrack — initial schema
--- Multi-project workspace; per-project membership controls RLS.
--- Safe to re-run: tables use `if not exists`, policies are dropped before re-create.
+-- NoteTrack v0.2 — schema
+--
+-- Model: a WORKSPACE (a department) holds TABLES. A table is a named set of
+-- ROWS with typed PROPERTIES. The DIARY is a stream of ENTRIES; an entry can
+-- reference any row (entry_refs). Actions, Decisions, Risks, Meetings, People
+-- and Projects are tables like any other, but with a `kind` so the diary knows
+-- how to write to them.
+--
+-- Run on a fresh Supabase project. Safe to re-run (idempotent).
 
 create extension if not exists "pg_trgm";
 create extension if not exists "pgcrypto";
 
--- ===== PROJECTS =====================================================
-create table if not exists public.projects (
-  id           uuid primary key default gen_random_uuid(),
-  code         text not null unique,
-  name         text not null,
-  phase        text,
-  color        text default 'yellow',
-  budget_total numeric(14,2),
-  budget_spent numeric(14,2) default 0,
-  fel3_due_at  date,
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()
+-- ===== WORKSPACES ====================================================
+create table if not exists public.workspaces (
+  id         uuid primary key default gen_random_uuid(),
+  slug       text not null unique,
+  name       text not null,
+  created_at timestamptz not null default now()
 );
 
 create table if not exists public.memberships (
-  project_id uuid not null references public.projects(id) on delete cascade,
-  user_id    uuid not null references auth.users(id) on delete cascade,
-  role       text not null default 'editor' check (role in ('owner','editor','viewer')),
-  created_at timestamptz not null default now(),
-  primary key (project_id, user_id)
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  user_id      uuid not null references auth.users(id) on delete cascade,
+  role         text not null default 'editor' check (role in ('owner','editor','viewer')),
+  created_at   timestamptz not null default now(),
+  primary key (workspace_id, user_id)
 );
-create index if not exists memberships_user_id_idx on public.memberships (user_id);
+create index if not exists memberships_user_idx on public.memberships (user_id);
 
--- ===== PEOPLE (project-scoped contacts; may or may not be auth users) =
-create table if not exists public.people (
-  id          uuid primary key default gen_random_uuid(),
-  project_id  uuid not null references public.projects(id) on delete cascade,
-  user_id     uuid references auth.users(id) on delete set null,
-  short_id    text not null,
-  name        text not null,
-  initials    text not null,
-  color       text default 'grey',
-  role_label  text,
-  created_at  timestamptz not null default now(),
-  unique (project_id, short_id)
+-- ===== TABLES / PROPERTIES / ROWS ====================================
+create table if not exists public.tables (
+  id             uuid primary key default gen_random_uuid(),
+  workspace_id   uuid not null references public.workspaces(id) on delete cascade,
+  slug           text not null,
+  name           text not null,
+  kind           text not null default 'custom'
+                 check (kind in ('custom','people','projects','actions','decisions','risks','meetings')),
+  ref_prefix     text not null,
+  next_seq       integer not null default 1,
+  is_stub_target boolean not null default false,
+  sort_order     smallint not null default 0,
+  created_at     timestamptz not null default now(),
+  unique (workspace_id, slug)
 );
-create index if not exists people_project_id_idx on public.people (project_id);
+-- one table per system kind per workspace
+create unique index if not exists tables_system_kind_idx
+  on public.tables (workspace_id, kind) where kind <> 'custom';
 
--- ===== ITEMS (referenced objects: equipment / docs / areas) ==========
-create table if not exists public.pipelines (
-  id         uuid primary key default gen_random_uuid(),
-  project_id uuid not null references public.projects(id) on delete cascade,
-  name       text not null,
-  is_default boolean default false,
-  created_at timestamptz not null default now()
-);
-
-create table if not exists public.pipeline_stages (
-  id          uuid primary key default gen_random_uuid(),
-  pipeline_id uuid not null references public.pipelines(id) on delete cascade,
-  name        text not null,
-  sort_order  smallint not null,
-  created_at  timestamptz not null default now()
-);
-create index if not exists pipeline_stages_pipeline_idx on public.pipeline_stages (pipeline_id, sort_order);
-
-create table if not exists public.items (
-  id               uuid primary key default gen_random_uuid(),
-  project_id       uuid not null references public.projects(id) on delete cascade,
-  ref_code         text not null,
-  title            text not null,
-  kind             text not null default 'other' check (kind in ('equipment','document','area','other')),
-  current_stage_id uuid references public.pipeline_stages(id) on delete set null,
-  created_at       timestamptz not null default now(),
-  updated_at       timestamptz not null default now(),
-  unique (project_id, ref_code)
-);
-create index if not exists items_title_trgm_idx on public.items using gin (title gin_trgm_ops);
-
--- ===== ENTRIES (the universal event log) =============================
-create table if not exists public.entries (
+create table if not exists public.properties (
   id                uuid primary key default gen_random_uuid(),
-  project_id        uuid not null references public.projects(id) on delete cascade,
-  author_id         uuid references auth.users(id) on delete set null,
-  type              text not null check (type in ('note','action','decision','risk','gate','meeting','call')),
-  body_md           text not null default '',
-  occurred_at       timestamptz not null default now(),
-  source_meeting_id uuid,
-  search_tsv        tsvector generated always as (to_tsvector('simple', coalesce(body_md, ''))) stored,
+  table_id          uuid not null references public.tables(id) on delete cascade,
+  key               text not null,
+  name              text not null,
+  type              text not null
+                    check (type in ('text','number','select','multi_select','date','person','relation','checkbox','url')),
+  options           jsonb not null default '[]'::jsonb,   -- select/multi_select: ["a","b"]
+  relation_table_id uuid references public.tables(id) on delete set null,
+  show_in_list      boolean not null default true,
+  sort_order        smallint not null default 0,
   created_at        timestamptz not null default now(),
-  updated_at        timestamptz not null default now()
-);
-create index if not exists entries_project_occurred_idx on public.entries (project_id, occurred_at desc);
-create index if not exists entries_search_idx on public.entries using gin (search_tsv);
-create index if not exists entries_source_meeting_idx on public.entries (source_meeting_id);
-
--- ===== TYPE-SPECIFIC ROWS ============================================
-create table if not exists public.actions (
-  entry_id             uuid primary key references public.entries(id) on delete cascade,
-  owner_person_id      uuid references public.people(id) on delete set null,
-  requester_person_id  uuid references public.people(id) on delete set null,
-  due_at               timestamptz,
-  status               text not null default 'open'
-                       check (status in ('open','in_progress','done','snoozed','blocked')),
-  done_at              timestamptz
-);
-create index if not exists actions_owner_status_idx on public.actions (owner_person_id, status);
-create index if not exists actions_due_at_idx on public.actions (due_at);
-
-create table if not exists public.decisions (
-  entry_id    uuid primary key references public.entries(id) on delete cascade,
-  impact_text text,
-  status      text not null default 'proposed'
-              check (status in ('proposed','approved','rejected'))
+  unique (table_id, key)
 );
 
-create table if not exists public.risks (
-  entry_id        uuid primary key references public.entries(id) on delete cascade,
-  probability     smallint not null check (probability between 1 and 5),
-  impact          smallint not null check (impact between 1 and 5),
-  owner_person_id uuid references public.people(id) on delete set null,
-  status          text not null default 'open'
-                  check (status in ('open','mitigating','closed'))
-);
-
-create table if not exists public.gate_moves (
-  entry_id      uuid primary key references public.entries(id) on delete cascade,
-  item_id       uuid not null references public.items(id) on delete cascade,
-  from_stage_id uuid references public.pipeline_stages(id) on delete set null,
-  to_stage_id   uuid not null references public.pipeline_stages(id) on delete cascade
-);
-create index if not exists gate_moves_item_idx on public.gate_moves (item_id);
-
-create table if not exists public.meetings (
-  entry_id      uuid primary key references public.entries(id) on delete cascade,
-  series        text,
-  location      text,
-  started_at    timestamptz,
-  ended_at      timestamptz,
-  recording_url text
-);
-
-create table if not exists public.meeting_attendees (
-  meeting_id uuid not null references public.meetings(entry_id) on delete cascade,
-  person_id  uuid not null references public.people(id) on delete cascade,
-  primary key (meeting_id, person_id)
-);
-
--- now that meetings table exists, add the FK from entries.source_meeting_id
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'entries_source_meeting_fk'
-      and conrelid = 'public.entries'::regclass
-  ) then
-    alter table public.entries
-      add constraint entries_source_meeting_fk
-      foreign key (source_meeting_id) references public.meetings(entry_id) on delete set null;
-  end if;
-end $$;
-
--- ===== SUPPORT: subtasks / refs / attachments / comments / watches ===
-create table if not exists public.subtasks (
+create table if not exists public.rows (
   id              uuid primary key default gen_random_uuid(),
-  action_entry_id uuid not null references public.actions(entry_id) on delete cascade,
+  workspace_id    uuid not null references public.workspaces(id) on delete cascade,
+  table_id        uuid not null references public.tables(id) on delete cascade,
+  ref_code        text not null,
   title           text not null,
-  done            boolean not null default false,
-  sort_order      smallint not null default 0,
-  created_at      timestamptz not null default now()
+  props           jsonb not null default '{}'::jsonb,
+  user_id         uuid references auth.users(id) on delete set null,  -- people rows only
+  source_entry_id uuid,                                               -- actions/decisions/risks created from the diary
+  archived_at     timestamptz,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  unique (workspace_id, ref_code)
 );
-create index if not exists subtasks_action_entry_idx on public.subtasks (action_entry_id, sort_order);
+create index if not exists rows_table_idx on public.rows (table_id, updated_at desc);
+create index if not exists rows_title_trgm_idx on public.rows using gin (title gin_trgm_ops);
+create index if not exists rows_props_idx on public.rows using gin (props);
+create index if not exists rows_user_idx on public.rows (user_id) where user_id is not null;
+create index if not exists rows_source_entry_idx on public.rows (source_entry_id) where source_entry_id is not null;
 
-create table if not exists public.entry_refs (
-  entry_id  uuid not null references public.entries(id) on delete cascade,
-  ref_kind  text not null check (ref_kind in ('item','person','file')),
-  ref_id    uuid not null,
-  primary key (entry_id, ref_kind, ref_id)
+-- ===== ENTRIES (the diary) ===========================================
+create table if not exists public.entries (
+  id             uuid primary key default gen_random_uuid(),
+  workspace_id   uuid not null references public.workspaces(id) on delete cascade,
+  author_id      uuid references auth.users(id) on delete set null,
+  type           text not null check (type in ('note','action','decision','risk','gate','meeting','call')),
+  body_md        text not null default '',
+  occurred_at    timestamptz not null default now(),
+  meeting_row_id uuid references public.rows(id) on delete set null,
+  project_row_id uuid references public.rows(id) on delete set null,
+  edited_at      timestamptz,
+  struck_at      timestamptz,
+  search_tsv     tsvector generated always as (to_tsvector('simple', coalesce(body_md, ''))) stored,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
 );
-create index if not exists entry_refs_kind_id_idx on public.entry_refs (ref_kind, ref_id);
+create index if not exists entries_ws_occurred_idx on public.entries (workspace_id, occurred_at desc);
+create index if not exists entries_search_idx on public.entries using gin (search_tsv);
+create index if not exists entries_meeting_idx on public.entries (meeting_row_id) where meeting_row_id is not null;
+create index if not exists entries_project_idx on public.entries (project_row_id) where project_row_id is not null;
+
+alter table public.rows
+  drop constraint if exists rows_source_entry_fk;
+alter table public.rows
+  add constraint rows_source_entry_fk
+  foreign key (source_entry_id) references public.entries(id) on delete cascade;
+
+-- previous bodies, kept when an entry is edited
+create table if not exists public.entry_revisions (
+  id          uuid primary key default gen_random_uuid(),
+  entry_id    uuid not null references public.entries(id) on delete cascade,
+  body_md     text not null,
+  replaced_at timestamptz not null default now(),
+  edited_by   uuid references auth.users(id) on delete set null
+);
+create index if not exists entry_revisions_entry_idx on public.entry_revisions (entry_id, replaced_at desc);
+
+-- links from an entry to any row (#refs and @mentions alike)
+create table if not exists public.entry_refs (
+  entry_id uuid not null references public.entries(id) on delete cascade,
+  row_id   uuid not null references public.rows(id) on delete cascade,
+  primary key (entry_id, row_id)
+);
+create index if not exists entry_refs_row_idx on public.entry_refs (row_id);
 
 create table if not exists public.attachments (
-  id        uuid primary key default gen_random_uuid(),
-  entry_id  uuid references public.entries(id) on delete cascade,
-  project_id uuid not null references public.projects(id) on delete cascade,
-  file_path text not null,
-  mime      text,
-  bytes     bigint,
-  created_at timestamptz not null default now()
+  id           uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  entry_id     uuid not null references public.entries(id) on delete cascade,
+  kind         text not null default 'file' check (kind in ('file','ink')),
+  file_path    text not null,
+  mime         text,
+  bytes        bigint,
+  meta         jsonb not null default '{}'::jsonb,   -- ink: { strokes_path, width, height }
+  created_at   timestamptz not null default now()
 );
-create index if not exists attachments_project_idx on public.attachments (project_id);
+create index if not exists attachments_entry_idx on public.attachments (entry_id);
 
-create table if not exists public.comments (
+-- ===== VIEWS (saved filters/sort/group per table) ====================
+create table if not exists public.views (
   id         uuid primary key default gen_random_uuid(),
-  entry_id   uuid not null references public.entries(id) on delete cascade,
-  author_id  uuid references auth.users(id) on delete set null,
-  body_md    text not null,
+  table_id   uuid not null references public.tables(id) on delete cascade,
+  name       text not null,
+  layout     text not null default 'list' check (layout in ('list','board')),
+  config     jsonb not null default '{}'::jsonb,  -- { filters:[{key,op,value}], sort:{key,dir}, group:key }
+  sort_order smallint not null default 0,
   created_at timestamptz not null default now()
 );
-create index if not exists comments_entry_created_idx on public.comments (entry_id, created_at);
+create index if not exists views_table_idx on public.views (table_id, sort_order);
 
-create table if not exists public.watches (
-  user_id   uuid not null references auth.users(id) on delete cascade,
-  ref_kind  text not null check (ref_kind in ('item','entry')),
-  ref_id    uuid not null,
-  created_at timestamptz not null default now(),
-  primary key (user_id, ref_kind, ref_id)
-);
-
--- ===== updated_at triggers ==========================================
+-- ===== TRIGGERS ======================================================
 create or replace function public.touch_updated_at() returns trigger
 language plpgsql as $$
 begin new.updated_at = now(); return new; end $$;
 
-drop trigger if exists projects_touch on public.projects;
-create trigger projects_touch before update on public.projects
-  for each row execute procedure public.touch_updated_at();
-
-drop trigger if exists items_touch on public.items;
-create trigger items_touch before update on public.items
+drop trigger if exists rows_touch on public.rows;
+create trigger rows_touch before update on public.rows
   for each row execute procedure public.touch_updated_at();
 
 drop trigger if exists entries_touch on public.entries;
 create trigger entries_touch before update on public.entries
   for each row execute procedure public.touch_updated_at();
 
--- ===== RLS ==========================================================
-alter table public.projects          enable row level security;
-alter table public.memberships       enable row level security;
-alter table public.people            enable row level security;
-alter table public.pipelines         enable row level security;
-alter table public.pipeline_stages   enable row level security;
-alter table public.items             enable row level security;
-alter table public.entries           enable row level security;
-alter table public.actions           enable row level security;
-alter table public.decisions         enable row level security;
-alter table public.risks             enable row level security;
-alter table public.gate_moves        enable row level security;
-alter table public.meetings          enable row level security;
-alter table public.meeting_attendees enable row level security;
-alter table public.subtasks          enable row level security;
-alter table public.entry_refs        enable row level security;
-alter table public.attachments       enable row level security;
-alter table public.comments          enable row level security;
-alter table public.watches           enable row level security;
+-- Assign a ref code (PREFIX-N) when none is supplied.
+create or replace function public.rows_assign_ref() returns trigger
+language plpgsql as $$
+declare
+  v_prefix text;
+  v_seq integer;
+begin
+  if new.ref_code is null or btrim(new.ref_code) = '' then
+    update public.tables
+      set next_seq = next_seq + 1
+      where id = new.table_id
+      returning ref_prefix, next_seq - 1 into v_prefix, v_seq;
+    new.ref_code := v_prefix || '-' || v_seq;
+  else
+    new.ref_code := btrim(new.ref_code);
+  end if;
+  return new;
+end $$;
 
--- helper: am I a member of this project?
-create or replace function public.is_member(pid uuid) returns boolean
+drop trigger if exists rows_assign_ref on public.rows;
+create trigger rows_assign_ref before insert on public.rows
+  for each row execute procedure public.rows_assign_ref();
+
+-- ===== RLS HELPERS ===================================================
+create or replace function public.is_member(wid uuid) returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists(
-    select 1 from public.memberships m
-    where m.project_id = pid and m.user_id = auth.uid()
-  );
+  select exists(select 1 from public.memberships m where m.workspace_id = wid and m.user_id = auth.uid());
 $$;
 
--- helper: do I have editor or owner role?
-create or replace function public.is_editor(pid uuid) returns boolean
+create or replace function public.is_editor(wid uuid) returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists(
-    select 1 from public.memberships m
-    where m.project_id = pid and m.user_id = auth.uid() and m.role in ('owner','editor')
-  );
+  select exists(select 1 from public.memberships m
+    where m.workspace_id = wid and m.user_id = auth.uid() and m.role in ('owner','editor'));
 $$;
 
--- helper: am I the owner of this project?
--- security definer so policies that need to check ownership don't recursively
--- trigger memberships RLS (which would cause "infinite recursion detected").
-create or replace function public.is_owner(pid uuid) returns boolean
+create or replace function public.is_owner(wid uuid) returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists(
-    select 1 from public.memberships m
-    where m.project_id = pid and m.user_id = auth.uid() and m.role = 'owner'
-  );
+  select exists(select 1 from public.memberships m
+    where m.workspace_id = wid and m.user_id = auth.uid() and m.role = 'owner');
 $$;
 
--- ----- projects: members can read; only owners can update -----
-drop policy if exists projects_read on public.projects;
-create policy projects_read on public.projects
-  for select using (public.is_member(id));
+create or replace function public.table_workspace(tid uuid) returns uuid
+language sql stable security definer set search_path = public as $$
+  select workspace_id from public.tables where id = tid;
+$$;
 
-drop policy if exists projects_owner_update on public.projects;
-create policy projects_owner_update on public.projects
-  for update using (public.is_owner(id)) with check (public.is_owner(id));
+create or replace function public.entry_workspace(eid uuid) returns uuid
+language sql stable security definer set search_path = public as $$
+  select workspace_id from public.entries where id = eid;
+$$;
 
--- ----- memberships: a user sees their own rows + co-members; owners manage -----
-drop policy if exists memberships_self_read on public.memberships;
-create policy memberships_self_read on public.memberships
-  for select using (user_id = auth.uid() or public.is_member(project_id));
+-- ===== RLS ===========================================================
+alter table public.workspaces      enable row level security;
+alter table public.memberships     enable row level security;
+alter table public.tables          enable row level security;
+alter table public.properties      enable row level security;
+alter table public.rows            enable row level security;
+alter table public.entries         enable row level security;
+alter table public.entry_revisions enable row level security;
+alter table public.entry_refs      enable row level security;
+alter table public.attachments     enable row level security;
+alter table public.views           enable row level security;
 
+drop policy if exists workspaces_read on public.workspaces;
+create policy workspaces_read on public.workspaces for select using (public.is_member(id));
+drop policy if exists workspaces_update on public.workspaces;
+create policy workspaces_update on public.workspaces for update
+  using (public.is_owner(id)) with check (public.is_owner(id));
+
+drop policy if exists memberships_read on public.memberships;
+create policy memberships_read on public.memberships for select
+  using (user_id = auth.uid() or public.is_member(workspace_id));
 drop policy if exists memberships_owner_write on public.memberships;
-create policy memberships_owner_write on public.memberships
-  for all using (public.is_owner(project_id)) with check (public.is_owner(project_id));
+create policy memberships_owner_write on public.memberships for all
+  using (public.is_owner(workspace_id)) with check (public.is_owner(workspace_id));
 
--- ----- people -----
-drop policy if exists people_read on public.people;
-create policy people_read on public.people
-  for select using (public.is_member(project_id));
-drop policy if exists people_insert on public.people;
-create policy people_insert on public.people
-  for insert with check (public.is_editor(project_id));
-drop policy if exists people_update on public.people;
-create policy people_update on public.people
-  for update using (public.is_editor(project_id));
-drop policy if exists people_delete on public.people;
-create policy people_delete on public.people
-  for delete using (public.is_editor(project_id));
+-- tables with a workspace_id column: members read, editors write
+drop policy if exists tables_read on public.tables;
+create policy tables_read on public.tables for select using (public.is_member(workspace_id));
+drop policy if exists tables_write on public.tables;
+create policy tables_write on public.tables for all
+  using (public.is_editor(workspace_id)) with check (public.is_editor(workspace_id));
 
--- ----- pipelines -----
-drop policy if exists pipelines_read on public.pipelines;
-create policy pipelines_read on public.pipelines
-  for select using (public.is_member(project_id));
-drop policy if exists pipelines_insert on public.pipelines;
-create policy pipelines_insert on public.pipelines
-  for insert with check (public.is_editor(project_id));
-drop policy if exists pipelines_update on public.pipelines;
-create policy pipelines_update on public.pipelines
-  for update using (public.is_editor(project_id));
-drop policy if exists pipelines_delete on public.pipelines;
-create policy pipelines_delete on public.pipelines
-  for delete using (public.is_editor(project_id));
+drop policy if exists rows_read on public.rows;
+create policy rows_read on public.rows for select using (public.is_member(workspace_id));
+drop policy if exists rows_write on public.rows;
+create policy rows_write on public.rows for all
+  using (public.is_editor(workspace_id)) with check (public.is_editor(workspace_id));
 
--- ----- items -----
-drop policy if exists items_read on public.items;
-create policy items_read on public.items
-  for select using (public.is_member(project_id));
-drop policy if exists items_insert on public.items;
-create policy items_insert on public.items
-  for insert with check (public.is_editor(project_id));
-drop policy if exists items_update on public.items;
-create policy items_update on public.items
-  for update using (public.is_editor(project_id));
-drop policy if exists items_delete on public.items;
-create policy items_delete on public.items
-  for delete using (public.is_editor(project_id));
-
--- ----- entries -----
 drop policy if exists entries_read on public.entries;
-create policy entries_read on public.entries
-  for select using (public.is_member(project_id));
-drop policy if exists entries_insert on public.entries;
-create policy entries_insert on public.entries
-  for insert with check (public.is_editor(project_id));
-drop policy if exists entries_update on public.entries;
-create policy entries_update on public.entries
-  for update using (public.is_editor(project_id));
-drop policy if exists entries_delete on public.entries;
-create policy entries_delete on public.entries
-  for delete using (public.is_editor(project_id));
+create policy entries_read on public.entries for select using (public.is_member(workspace_id));
+drop policy if exists entries_write on public.entries;
+create policy entries_write on public.entries for all
+  using (public.is_editor(workspace_id)) with check (public.is_editor(workspace_id));
 
--- ----- attachments -----
 drop policy if exists attachments_read on public.attachments;
-create policy attachments_read on public.attachments
-  for select using (public.is_member(project_id));
-drop policy if exists attachments_insert on public.attachments;
-create policy attachments_insert on public.attachments
-  for insert with check (public.is_editor(project_id));
-drop policy if exists attachments_update on public.attachments;
-create policy attachments_update on public.attachments
-  for update using (public.is_editor(project_id));
-drop policy if exists attachments_delete on public.attachments;
-create policy attachments_delete on public.attachments
-  for delete using (public.is_editor(project_id));
+create policy attachments_read on public.attachments for select using (public.is_member(workspace_id));
+drop policy if exists attachments_write on public.attachments;
+create policy attachments_write on public.attachments for all
+  using (public.is_editor(workspace_id)) with check (public.is_editor(workspace_id));
 
--- ----- pipeline_stages: no direct project_id; join through pipelines -----
-drop policy if exists pipeline_stages_read on public.pipeline_stages;
-create policy pipeline_stages_read on public.pipeline_stages
-  for select using (
-    exists(select 1 from public.pipelines pl
-      where pl.id = pipeline_stages.pipeline_id and public.is_member(pl.project_id)));
-drop policy if exists pipeline_stages_insert on public.pipeline_stages;
-create policy pipeline_stages_insert on public.pipeline_stages
-  for insert with check (
-    exists(select 1 from public.pipelines pl
-      where pl.id = pipeline_stages.pipeline_id and public.is_editor(pl.project_id)));
-drop policy if exists pipeline_stages_update on public.pipeline_stages;
-create policy pipeline_stages_update on public.pipeline_stages
-  for update using (
-    exists(select 1 from public.pipelines pl
-      where pl.id = pipeline_stages.pipeline_id and public.is_editor(pl.project_id)));
-drop policy if exists pipeline_stages_delete on public.pipeline_stages;
-create policy pipeline_stages_delete on public.pipeline_stages
-  for delete using (
-    exists(select 1 from public.pipelines pl
-      where pl.id = pipeline_stages.pipeline_id and public.is_editor(pl.project_id)));
+-- joined through tables
+drop policy if exists properties_read on public.properties;
+create policy properties_read on public.properties for select
+  using (public.is_member(public.table_workspace(table_id)));
+drop policy if exists properties_write on public.properties;
+create policy properties_write on public.properties for all
+  using (public.is_editor(public.table_workspace(table_id)))
+  with check (public.is_editor(public.table_workspace(table_id)));
 
--- ----- tables linked via entry_id: gate via parent entry's project ---
-drop policy if exists actions_read on public.actions;
-create policy actions_read on public.actions for select using (
-  exists(select 1 from public.entries e where e.id = actions.entry_id and public.is_member(e.project_id)));
-drop policy if exists actions_write on public.actions;
-create policy actions_write on public.actions for all using (
-  exists(select 1 from public.entries e where e.id = actions.entry_id and public.is_editor(e.project_id)))
-  with check (true);
+drop policy if exists views_read on public.views;
+create policy views_read on public.views for select
+  using (public.is_member(public.table_workspace(table_id)));
+drop policy if exists views_write on public.views;
+create policy views_write on public.views for all
+  using (public.is_editor(public.table_workspace(table_id)))
+  with check (public.is_editor(public.table_workspace(table_id)));
 
-drop policy if exists decisions_read on public.decisions;
-create policy decisions_read on public.decisions for select using (
-  exists(select 1 from public.entries e where e.id = decisions.entry_id and public.is_member(e.project_id)));
-drop policy if exists decisions_write on public.decisions;
-create policy decisions_write on public.decisions for all using (
-  exists(select 1 from public.entries e where e.id = decisions.entry_id and public.is_editor(e.project_id)))
-  with check (true);
-
-drop policy if exists risks_read on public.risks;
-create policy risks_read on public.risks for select using (
-  exists(select 1 from public.entries e where e.id = risks.entry_id and public.is_member(e.project_id)));
-drop policy if exists risks_write on public.risks;
-create policy risks_write on public.risks for all using (
-  exists(select 1 from public.entries e where e.id = risks.entry_id and public.is_editor(e.project_id)))
-  with check (true);
-
-drop policy if exists gate_moves_read on public.gate_moves;
-create policy gate_moves_read on public.gate_moves for select using (
-  exists(select 1 from public.entries e where e.id = gate_moves.entry_id and public.is_member(e.project_id)));
-drop policy if exists gate_moves_write on public.gate_moves;
-create policy gate_moves_write on public.gate_moves for all using (
-  exists(select 1 from public.entries e where e.id = gate_moves.entry_id and public.is_editor(e.project_id)))
-  with check (true);
-
-drop policy if exists meetings_read on public.meetings;
-create policy meetings_read on public.meetings for select using (
-  exists(select 1 from public.entries e where e.id = meetings.entry_id and public.is_member(e.project_id)));
-drop policy if exists meetings_write on public.meetings;
-create policy meetings_write on public.meetings for all using (
-  exists(select 1 from public.entries e where e.id = meetings.entry_id and public.is_editor(e.project_id)))
-  with check (true);
-
-drop policy if exists meeting_attendees_read on public.meeting_attendees;
-create policy meeting_attendees_read on public.meeting_attendees for select using (
-  exists(select 1 from public.meetings m
-    join public.entries e on e.id = m.entry_id
-    where m.entry_id = meeting_attendees.meeting_id and public.is_member(e.project_id)));
-drop policy if exists meeting_attendees_write on public.meeting_attendees;
-create policy meeting_attendees_write on public.meeting_attendees for all using (
-  exists(select 1 from public.meetings m
-    join public.entries e on e.id = m.entry_id
-    where m.entry_id = meeting_attendees.meeting_id and public.is_editor(e.project_id)))
-  with check (true);
-
-drop policy if exists subtasks_read on public.subtasks;
-create policy subtasks_read on public.subtasks for select using (
-  exists(select 1 from public.entries e where e.id = subtasks.action_entry_id and public.is_member(e.project_id)));
-drop policy if exists subtasks_write on public.subtasks;
-create policy subtasks_write on public.subtasks for all using (
-  exists(select 1 from public.entries e where e.id = subtasks.action_entry_id and public.is_editor(e.project_id)))
-  with check (true);
+-- joined through entries
+drop policy if exists entry_revisions_read on public.entry_revisions;
+create policy entry_revisions_read on public.entry_revisions for select
+  using (public.is_member(public.entry_workspace(entry_id)));
+drop policy if exists entry_revisions_write on public.entry_revisions;
+create policy entry_revisions_write on public.entry_revisions for all
+  using (public.is_editor(public.entry_workspace(entry_id)))
+  with check (public.is_editor(public.entry_workspace(entry_id)));
 
 drop policy if exists entry_refs_read on public.entry_refs;
-create policy entry_refs_read on public.entry_refs for select using (
-  exists(select 1 from public.entries e where e.id = entry_refs.entry_id and public.is_member(e.project_id)));
+create policy entry_refs_read on public.entry_refs for select
+  using (public.is_member(public.entry_workspace(entry_id)));
 drop policy if exists entry_refs_write on public.entry_refs;
-create policy entry_refs_write on public.entry_refs for all using (
-  exists(select 1 from public.entries e where e.id = entry_refs.entry_id and public.is_editor(e.project_id)))
-  with check (true);
+create policy entry_refs_write on public.entry_refs for all
+  using (public.is_editor(public.entry_workspace(entry_id)))
+  with check (public.is_editor(public.entry_workspace(entry_id)));
 
-drop policy if exists comments_read on public.comments;
-create policy comments_read on public.comments for select using (
-  exists(select 1 from public.entries e where e.id = comments.entry_id and public.is_member(e.project_id)));
-drop policy if exists comments_write on public.comments;
-create policy comments_write on public.comments for all using (
-  exists(select 1 from public.entries e where e.id = comments.entry_id and public.is_member(e.project_id)))
-  with check (author_id = auth.uid());
-
--- ----- watches: per-user only -----
-drop policy if exists watches_self on public.watches;
-create policy watches_self on public.watches
-  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+-- ===== REALTIME ======================================================
+-- Add the diary tables to the realtime publication so open pages refresh.
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    begin
+      alter publication supabase_realtime add table public.entries;
+    exception when duplicate_object then null; end;
+    begin
+      alter publication supabase_realtime add table public.rows;
+    exception when duplicate_object then null; end;
+  end if;
+end $$;

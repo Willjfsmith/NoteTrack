@@ -1,115 +1,38 @@
-# NoteTrack — build plan
+# NoteTrack — v0.2 plan
 
-A 13-prompt sequence for finishing the app. **All prompts (1–13) are landed.**
-This document remains as a reference for what each prompt covered.
+## The goal
 
-Each prompt is self-contained — paste it into a fresh Claude Code session in this repo, on the working branch `claude/plan-app-architecture-GUBli`, and let it run.
+Get NoteTrack into daily use by one engineer who also runs a department, and let that use decide what comes next. Minimal on purpose. Web only.
 
-> Reference assets live in `docs/design-reference/`:
-> - `daytrack.css` — design tokens (already ported into `src/app/globals.css` + `tailwind.config.ts`)
-> - `daytrack-data.js` — sample data shape
-> - `*.html` — full prototype screens
-> - `screenshots/` — PNG mockups
+## The model
 
----
+A **workspace** (a department) holds **tables**. A table is a named set of **rows** with typed **properties**. The **diary** is a stream of **entries**. An entry can reference any row; a row's page shows every entry that references it. That is the whole idea.
 
-## ✅ Prompt 1 — Bootstrap (done)
-Next.js 15 App Router, TypeScript, Tailwind, ESLint, dependencies, env example, gitignore, base layout.
+v0.1 made the project the container and built a bespoke page per concept (actions, risks, pipelines, people, library, watching). v0.2 makes the department the container, turns Project into a table, and replaces the bespoke pages with one table engine. The composer, parser and kanban carried over; the data layer was rewritten.
 
-## ✅ Prompt 2 — Schema + RLS + seed (done)
-`supabase/migrations/0001_init.sql` and `0002_seed.sql`. Tables: projects, memberships, people, items, pipelines/stages, entries, actions, decisions, risks, gate_moves, meetings, attendees, subtasks, entry_refs, attachments, comments, watches. RLS for every table. Seeded "South Plant — Phase 2".
+## What v0.2 ships
 
-## ✅ Prompt 3 — Auth + project context (done, minimal)
-Magic-link login (`/login`), callback (`/auth/callback`), middleware guards `/p/*`, project picker (`/select-project`), per-project layout fetches project + verifies membership.
+| Area | Done |
+| --- | --- |
+| Schema | workspaces · memberships · tables · properties · rows (JSONB props) · entries · entry_revisions · entry_refs · attachments · views. RLS on everything. Ref-code trigger. Realtime on entries and rows. |
+| RPCs | `create_workspace` seeds 8 tables + properties + views + your People row (+ optional sample). `add_member_by_email`. `search_workspace` (tsvector + trigram). |
+| Diary | textarea composer (Scribble-friendly), `#`/`@` autocomplete, Enter to log; edit with kept revisions; strike out; project + date filters; realtime refresh; Markdown export. |
+| Entries → rows | `/todo` `/done` → Actions, `/decision` → Decisions, `/risk` → Risks, each linked back by `source_entry_id`; status / due / score chips in the diary. |
+| Tables | list layout with inline cell editing; board layout grouped by any select property with drag (logs a `gate` entry); filter builder; sort; free-text filter; saved views in the sidebar; new row; Markdown export. |
+| Row page | editable title/ref; properties panel; composer bound to the row; timeline; backlinks from every table whose person/relation property points here; archive; export. Meetings rows get a notes pad with an outputs summary. |
+| Ink | write-once Pencil canvas (perfect-freehand): pressure, pen-only by default, undo/redo, whole-stroke eraser; saved as PNG + strokes JSON; shown inline in the diary. Files attach the same way. |
+| Search | page + ⌘K palette, both on the same RPC. |
+| Settings | create/rename tables, set prefix and the `#ref` default table, add/rename/delete properties, members by email of an existing user. |
+| Style | compact, monochrome, one accent; red/amber/green only for meaning. |
+| CI | typecheck, lint, unit tests, build; migrations + SQL smoke on plain Postgres. |
 
-## ✅ Prompt 4 — Design system (done)
-Tokens in `globals.css` and `tailwind.config.ts`. Primitives in `src/components/ui/`: Tone, Avatar, RefChip, Kbd, Button. `/styleguide` page renders all of them.
+## Deliberately left out
 
-## ✅ Prompt 5 — App shell (done)
-Sidebar (`src/components/shell/sidebar.tsx`), TopBar with breadcrumbs, project layout. Stub pages for all eight sections so navigation works.
+Installable app shell, offline mode, photo capture, email invites, digests, dashboard tiles, Watching, Library as a page, comments, formulas, nested pages, a block editor, editing a sketch after saving.
 
-## ✅ Prompt 6 — Today page (stub done)
-`/p/[code]/today` shows hero, read-only composer, right rail. Full diary stream + day-grouping + on-you panel + heatmap + composer wiring is in Prompt 7.
+## Next, only if use demands it
 
----
-
-## ✅ Prompt 7 — Composer + slash parser
-
-**goal/context:** Wire up entry creation. Free-text input prefixed with `/note`, `/todo`, `/done`, `/decision`, `/risk`, `/call`. `#XYZ` links items, `@id` mentions people, `$1.2k` attaches money, `due:thu` sets due date.
-
-**do this:**
-- `src/lib/composer/parse.ts` — pure function with unit tests (`pnpm add -D vitest`).
-- `<Composer>` component with `#`/`@` autocomplete (Supabase lookup), `Cmd+Enter` to submit, optimistic insert.
-- Server action `createEntry({ projectId, raw })` that inserts entry + specialised row + entry_refs in a transaction. Stub items if `#XYZ` doesn't exist.
-
-**done when:** typing `/risk HV switchgear lead time #SWG-401 @lr p:4 i:4` creates a risk entry with correct probability/impact, links the item, owner-assigns Leo, and it appears in Today's diary.
-
----
-
-## ✅ Prompt 8 — Actions register
-
-**goal/context:** `/p/[code]/actions` — register-style page. Reference `docs/design-reference/Actions.html`.
-
-**do this:** Bucket grouping (Late / Today / This week / Later). Tabs (On you / I requested / Watching / All). Detail pane with Overview / Activity / Sub-tasks / Files. URL-driven filters via `nuqs`. Keyboard shortcuts: `J/K`, `E` snooze, `R` reassign, `L` log, `⌘↵` done.
-
-**done when:** prototype's layout reproduced, all shortcuts work, mutations are optimistic, URL is shareable.
-
----
-
-## ✅ Prompt 9 — Pipelines kanban
-
-**goal/context:** `/p/[code]/pipelines` — drag-and-drop kanban; each move creates a `gate` entry.
-
-**do this:** `@dnd-kit/core` board. Server action `moveItem({ itemId, toStageId })` updates `items.current_stage_id` + inserts `gate_moves`. Card shows ref code, title, owner, days-in-stage.
-
-**done when:** dragging emits a gate entry visible in the diary, board state survives reload.
-
----
-
-## ✅ Prompt 10 — Risks register
-
-**goal/context:** `/p/[code]/risks` — 5×5 register.
-
-**do this:** Reuse `RegisterShell` from Prompt 8. 5×5 heatmap (color by `p*i`), click cell to filter. Detail with mitigation log + linked actions. Editable p, i, owner, status.
-
-**done when:** heatmap reflects live data, filters work, score updates on edit.
-
----
-
-## ✅ Prompt 11 — Meetings (live notes)
-
-**goal/context:** `/p/[code]/meetings` — Today / Upcoming / Past. Live notes that emit child entries via the Prompt 7 parser.
-
-**do this:** Reuse `RegisterShell`. Notes pane treats each paragraph as a composer line, attached via `entries.source_meeting_id`. Outputs tab auto-aggregates child entries by type. Realtime channel for live updates.
-
-**done when:** typing `/action Reply to regulator @me due:today #ENV-AQ-3` in a meeting creates the meeting entry, child action entry, action row owned by the user, and entry_ref to the item — visible everywhere immediately.
-
----
-
-## ✅ Prompt 12 — Library, People, Watching, Item Detail, Search
-
-**goal/context:** Wrap remaining surfaces. References: `Library.html`, `People.html`, `Watching.html`, `Item Detail.html`.
-
-**do this:**
-- Library: grid of attachments, Storage upload, filter by item/kind/date.
-- People: list + profile drawer (recent activity, owned actions/risks).
-- Watching: items in `watches` with unread counts since last visit.
-- Item Detail: `/p/[code]/items/[ref]` with Activity / Files / Linked / Risks tabs.
-- Search: enhance `⌘K` with full-text on `entries.body_md` + `items.title` (uses indexes from Prompt 2).
-
-**done when:** all five surfaces render real data, uploads land in Storage, item detail round-trips, `⌘K` searches across types.
-
----
-
-## ✅ Prompt 13 — Realtime, polish, deploy
-
-**goal/context:** Make it live, polish, ship.
-
-**do this:**
-- Supabase Realtime on `entries`, `actions`, `gate_moves` so Diary, Actions, and Pipelines update without reload.
-- Empty states, skeletons, toast notifications (`sonner`), error boundaries per route segment.
-- Lighthouse pass, font preloading, no CLS on hero, `next/image` everywhere.
-- Playwright smoke tests: login → create entry → diary; drag card → gate entry.
-- Wire Vercel: connect repo, env vars, prod branch = `main`. Tag `v0.1.0` once green.
-
-**done when:** two browser tabs sync without reload, smoke tests pass in CI, Vercel previews on push, `v0.1.0` tagged.
+- Authenticated Playwright flows (needs a service-role test helper).
+- Pagination on the diary beyond 300 entries per view.
+- Relation properties that hold several rows.
+- A per-user "on you" view (Actions where owner = @me is already one filter away).
