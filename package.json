@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "sync:sql": "bash scripts/build-sync-sql.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
