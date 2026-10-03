@@ -31,13 +31,13 @@ cp .env.example .env.local
 
 ### 3. Apply the schema
 
-Open **SQL Editor → New query** and run, in order:
+Open **SQL Editor → New query**, paste the whole of **`supabase/sync.sql`**, and run it. That one file brings any project to the current schema and is safe to run again after every update:
 
-1. `supabase/migrations/0001_init.sql` — tables, RLS, triggers, realtime
-2. `supabase/migrations/0002_functions.sql` — `create_workspace`, `add_member_by_email`, `search_workspace`
-3. `supabase/migrations/0003_storage.sql` — the `attachments` bucket and its policies
+- an **empty project** gets the full v0.2 schema, functions and storage policies;
+- a project on the **old v0.1 schema** (projects / items / pipelines) has those tables moved into a `legacy` schema, untouched and still queryable from the SQL editor, before v0.2 is applied;
+- a project on an **earlier v0.2** gets the new columns, functions and seeded views, and existing workspaces are caught up.
 
-They are idempotent; re-running is safe. If you used the pre-v0.2 schema (projects / items / pipelines), use a fresh Supabase project: the model changed and there is no data migration.
+`sync.sql` is generated from `supabase/migrations/*.sql` plus the two steps in `supabase/sync/` by `pnpm sync:sql`; CI checks it is current. The individual migration files are there for reading, not for running by hand.
 
 ### 4. Sign in and create a workspace
 

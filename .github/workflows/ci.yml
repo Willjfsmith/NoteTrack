@@ -36,6 +36,24 @@ jobs:
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: sync.sql is up to date
+        run: |
+          bash scripts/build-sync-sql.sh
+          git diff --ignore-matching-lines='^-- Built from' --exit-code supabase/sync.sql || { echo "run pnpm sync:sql and commit"; exit 1; }
+      - name: sync.sql from a v0.1 database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -c "create database legacy_test;"
+          psql -h localhost -U postgres -d legacy_test -v ON_ERROR_STOP=1 -q -f supabase/ci/stubs.sql
+          for f in 0001_init.sql 0002_seed.sql 0003_create_project_rpc.sql 0004_storage.sql; do
+            git show 02c14a1:supabase/migrations/$f | psql -h localhost -U postgres -d legacy_test -v ON_ERROR_STOP=1 -q
+          done
+          psql -h localhost -U postgres -d legacy_test -v ON_ERROR_STOP=1 -q -f supabase/sync.sql
+          psql -h localhost -U postgres -d legacy_test -v ON_ERROR_STOP=1 -q -f supabase/sync.sql
+          psql -h localhost -U postgres -d legacy_test -v ON_ERROR_STOP=1 -f supabase/ci/smoke.sql
       - name: Apply migrations against a stub of the Supabase schema
         env:
           PGPASSWORD: postgres
