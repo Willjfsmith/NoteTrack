@@ -5,12 +5,9 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
-
-  // If env vars aren't set yet (first-time local dev) just pass through.
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return response;
   }
-
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -20,35 +17,29 @@ export async function middleware(request: NextRequest) {
         setAll: (toSet: CookieToSet[]) => {
           toSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
-          toSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          );
+          toSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
         },
       },
     },
   );
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isProtected = path.startsWith("/p/") || path === "/select-project";
-  const isAuthPage = path === "/login" || path.startsWith("/auth/");
-
+  const isProtected = path === "/w" || path.startsWith("/w/");
   if (isProtected && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirect", path);
     return NextResponse.redirect(url);
   }
-
-  if (isAuthPage && user && path === "/login") {
+  if (path === "/login" && user) {
     const url = request.nextUrl.clone();
-    url.pathname = "/select-project";
+    url.pathname = "/w";
+    url.search = "";
     return NextResponse.redirect(url);
   }
-
   return response;
 }
 

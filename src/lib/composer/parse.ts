@@ -13,7 +13,7 @@
  * in the server action that consumes its output.
  */
 
-export type EntryType = "note" | "action" | "decision" | "risk" | "call";
+export type EntryType = "note" | "action" | "decision" | "risk" | "call" | "meeting";
 
 export type ParsedEntry = {
   /** Final classified entry type. `note` is the fallback. */
@@ -35,6 +35,10 @@ export type ParsedEntry = {
   impact?: number;
   /** Whether the input started with a `/done` slash, which marks an action complete. */
   doneShortcut: boolean;
+  /** `status:<word>` — sets the status of an existing row referenced in the line. */
+  status?: string;
+  /** `at:<when>` — backdate the entry; ISO datetime resolved on the caller's clock. */
+  at?: string;
 };
 
 const SLASH_COMMANDS: Record<string, EntryType | "todo" | "done"> = {
@@ -45,6 +49,8 @@ const SLASH_COMMANDS: Record<string, EntryType | "todo" | "done"> = {
   decision: "decision",
   risk: "risk",
   call: "call",
+  meeting: "meeting",
+  mtg: "meeting",
 };
 
 const ITEM_RE = /(?<![A-Za-z0-9_])#([A-Za-z][\w-]{0,63})/g;
@@ -54,6 +60,8 @@ const MONEY_RE = /\$(\d{1,3}(?:,\d{3})*|\d+)(?:\.(\d+))?\s*([kKmM]?)\b/;
 const DUE_RE = /\bdue:([+A-Za-z0-9-]+)/i;
 const P_RE = /\bp:([1-5])\b/i;
 const I_RE = /\bi:([1-5])\b/i;
+const STATUS_RE = /\bstatus:([a-z_-]+)\b/i;
+const AT_RE = /\bat:([A-Za-z0-9:@+-]+)/i;
 
 const WEEKDAYS: Record<string, number> = {
   sun: 0,
@@ -134,6 +142,51 @@ export function resolveDue(keyword: string, now: Date = new Date()): string | un
   }
 
   return undefined;
+}
+
+/**
+ * Resolve `at:` to an ISO datetime on the caller's clock. Forms:
+ *   at:14:30            today at 14:30
+ *   at:yesterday        yesterday, same time of day
+ *   at:mon              most recent Monday (today if Monday), same time of day
+ *   at:2026-09-30       that date, same time of day
+ *   at:-2d              two days ago
+ *   at:yesterday@14:30  any of the above with a time after `@`
+ */
+export function resolveAt(keyword: string, now: Date = new Date()): string | undefined {
+  const [datePart, timePart] = keyword.toLowerCase().split("@");
+  const t = new Date(now);
+  let hasDate = true;
+  const d = datePart === "" ? "today" : datePart;
+  if (/^\d{1,2}:\d{2}$/.test(d)) {
+    hasDate = false; // time only
+  } else if (d === "today" || d === "now") {
+    // keep
+  } else if (d === "yesterday" || d === "yest" || d === "yday") {
+    t.setDate(t.getDate() - 1);
+  } else if (d in WEEKDAYS) {
+    const delta = (t.getDay() - WEEKDAYS[d] + 7) % 7;
+    t.setDate(t.getDate() - delta);
+  } else if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+    const [y, m, dd] = d.split("-").map(Number);
+    t.setFullYear(y, m - 1, dd);
+  } else {
+    const rel = /^-(\d+)([dw])$/.exec(d);
+    if (!rel) return undefined;
+    const n = Number(rel[1]);
+    t.setDate(t.getDate() - (rel[2] === "d" ? n : n * 7));
+  }
+  const time = !hasDate ? d : timePart;
+  if (time) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(time);
+    if (!m) return undefined;
+    const h = Number(m[1]);
+    const mi = Number(m[2]);
+    if (h > 23 || mi > 59) return undefined;
+    t.setHours(h, mi, 0, 0);
+  }
+  if (Number.isNaN(t.getTime())) return undefined;
+  return t.toISOString();
 }
 
 /** Convert `$1.2k`/`$2m`/`$500` into a positive number of pence (×100). */
@@ -217,6 +270,29 @@ export function parseComposer(input: string, now: Date = new Date()): ParsedEntr
       .trim();
   }
 
+  // status:<word>
+  let status: string | undefined;
+  const sMatch = STATUS_RE.exec(body);
+  if (sMatch) {
+    status = sMatch[1].toLowerCase().replace(/[_-]/g, " ");
+    body = (body.slice(0, sMatch.index) + body.slice(sMatch.index + sMatch[0].length))
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
+  // at:<when> — backdate
+  let at: string | undefined;
+  const atMatch = AT_RE.exec(body);
+  if (atMatch) {
+    const resolved = resolveAt(atMatch[1], now);
+    if (resolved) {
+      at = resolved;
+      body = (body.slice(0, atMatch.index) + body.slice(atMatch.index + atMatch[0].length))
+        .replace(/\s{2,}/g, " ")
+        .trim();
+    }
+  }
+
   // Refs are NOT stripped — they remain in body so the diary renderer can chip them.
   const items = uniq(Array.from(body.matchAll(ITEM_RE), (m) => m[1]));
   const people = uniq(Array.from(body.matchAll(PERSON_RE), (m) => m[1].toLowerCase()));
@@ -232,6 +308,8 @@ export function parseComposer(input: string, now: Date = new Date()): ParsedEntr
     probability,
     impact,
     doneShortcut,
+    status,
+    at,
   };
 }
 

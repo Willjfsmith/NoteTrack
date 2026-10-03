@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseComposer, resolveDue } from "./parse";
+import { parseComposer, resolveAt, resolveDue } from "./parse";
 
 const REF_DATE = new Date("2026-04-27T10:00:00Z"); // Mon 27 Apr 2026
 
@@ -155,5 +155,57 @@ describe("parseComposer — combined fixture (the prompt's done-when example)", 
     expect(r.refs.items).toEqual(["SWG-401"]);
     expect(r.refs.people).toEqual(["lr"]);
     expect(r.body).toBe("HV switchgear lead time slipping #SWG-401 @lr");
+  });
+});
+
+describe("parseComposer — /meeting, status:, at:", () => {
+  it("/meeting and /mtg map to meeting", () => {
+    expect(parseComposer("/meeting Steerco weekly", REF_DATE).type).toBe("meeting");
+    expect(parseComposer("/mtg standup", REF_DATE).body).toBe("standup");
+  });
+
+  it("status: is captured, normalised and stripped", () => {
+    const r = parseComposer("/risk #RSK-14 status:closed vendor confirmed", REF_DATE);
+    expect(r.status).toBe("closed");
+    expect(r.body).toBe("#RSK-14 vendor confirmed");
+    expect(parseComposer("/todo #ACT-1 status:in_progress", REF_DATE).status).toBe("in progress");
+  });
+
+  it("at: resolves on the caller's clock and is stripped", () => {
+    const r = parseComposer("walked the pour at:yesterday@14:30 #SAG-mill", REF_DATE);
+    expect(r.body).toBe("walked the pour #SAG-mill");
+    const d = new Date(r.at!);
+    expect(d.getDate()).toBe(26);
+    expect(d.getHours()).toBe(14);
+    expect(d.getMinutes()).toBe(30);
+  });
+
+  it("unknown at: value is left in the body", () => {
+    const r = parseComposer("call at:noonish", REF_DATE);
+    expect(r.at).toBeUndefined();
+    expect(r.body).toBe("call at:noonish");
+  });
+});
+
+describe("resolveAt", () => {
+  // REF_DATE is Mon 27 Apr 2026 (local time of the test runner)
+  it("time only → today at that time", () => {
+    const d = new Date(resolveAt("09:15", REF_DATE)!);
+    expect(d.getDate()).toBe(REF_DATE.getDate());
+    expect(d.getHours()).toBe(9);
+  });
+  it("weekday → most recent past occurrence, today if same day", () => {
+    expect(new Date(resolveAt("mon", REF_DATE)!).getDate()).toBe(REF_DATE.getDate());
+    const fri = new Date(resolveAt("fri", REF_DATE)!);
+    expect(fri.getDay()).toBe(5);
+    expect(fri.getTime()).toBeLessThan(REF_DATE.getTime());
+  });
+  it("iso date keeps the time of day; -2d goes back two days", () => {
+    expect(resolveAt("2026-04-01", REF_DATE)!.slice(0, 10)).toBe("2026-04-01");
+    expect(new Date(resolveAt("-2d", REF_DATE)!).getDate()).toBe(REF_DATE.getDate() - 2);
+  });
+  it("rejects nonsense", () => {
+    expect(resolveAt("soon", REF_DATE)).toBeUndefined();
+    expect(resolveAt("mon@25:00", REF_DATE)).toBeUndefined();
   });
 });

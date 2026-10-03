@@ -7,18 +7,18 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          "border border-line-2 bg-surface text-ink rounded-2 hover:bg-bg-2 hover:border-line-3",
-        primary:
+        default: "border border-line-2 bg-surface text-ink rounded-2 hover:bg-bg-2 hover:border-line-3",
+        primary: "border border-ink bg-ink text-white rounded-2 hover:bg-ink-2 hover:border-ink-2",
+        accent:
           "border border-accent bg-accent text-accent-ink rounded-2 hover:bg-accent-h hover:border-accent-h",
-        ghost:
-          "border border-transparent bg-transparent text-ink-2 rounded-2 hover:bg-bg-2 hover:text-ink",
+        ghost: "border border-transparent bg-transparent text-ink-2 rounded-2 hover:bg-bg-2 hover:text-ink",
+        danger: "border border-tone-red-bd bg-surface text-tone-red-ink rounded-2 hover:bg-tone-red-bg",
       },
       size: {
-        sm: "px-2 py-0.5 text-[11.5px] rounded-1",
+        sm: "px-1.5 py-0.5 text-[11.5px] rounded-1",
         md: "px-2.5 py-1 text-[12px]",
-        lg: "px-3.5 py-1.5 text-[13px]",
-        icon: "h-[26px] w-[26px] p-0 justify-center",
+        lg: "px-3 py-1.5 text-[13px]",
+        icon: "h-[24px] w-[24px] p-0 justify-center",
       },
     },
     defaultVariants: { variant: "default", size: "md" },

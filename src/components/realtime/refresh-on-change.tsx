@@ -4,32 +4,21 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-/**
- * Subscribe to a Supabase Realtime channel for a given table+filter and call
- * `router.refresh()` whenever a change happens — cheap way to keep server-
- * rendered registers in sync without each component implementing its own
- * cache patching.
- */
-export function RefreshOnChange({
-  table,
-  filter,
-}: {
-  table: "entries" | "actions" | "gate_moves" | "risks" | "items";
-  /** Postgres filter string, e.g. `project_id=eq.<uuid>`. */
-  filter: string;
-}) {
+/** Refresh the server-rendered page when a table changes (entries / rows are in the realtime publication). */
+export function RefreshOnChange({ table, filter }: { table: "entries" | "rows"; filter: string }) {
   const router = useRouter();
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
+    let t: ReturnType<typeof setTimeout> | null = null;
     const ch = supabase
       .channel(`refresh-${table}-${filter}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table, filter },
-        () => router.refresh(),
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table, filter }, () => {
+        if (t) clearTimeout(t);
+        t = setTimeout(() => router.refresh(), 250);
+      })
       .subscribe();
     return () => {
+      if (t) clearTimeout(t);
       supabase.removeChannel(ch);
     };
   }, [router, table, filter]);
